@@ -8,8 +8,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	pb "github.com/benlack/mocha-agent/pkg/grpc"
-	"github.com/benlack/mocha-agent/pkg/server"
+	pb "mocha-agent/pkg/grpc"
+	"mocha-agent/pkg/server"
 )
 
 var (

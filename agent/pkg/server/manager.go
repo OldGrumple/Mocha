@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	pb "github.com/benlack/mocha-agent/pkg/grpc"
+	pb "mocha-agent/pkg/grpc"
 )
 
 type Manager struct {
