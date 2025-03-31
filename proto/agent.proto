@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package agent;
+
+service AgentService {
+  rpc ProvisionServer (ProvisionRequest) returns (ProvisionResponse) {}
+  rpc StartServer (ServerActionRequest) returns (ServerActionResponse) {}
+  rpc StopServer (ServerActionRequest) returns (ServerActionResponse) {}
+  rpc DeleteServer (ServerActionRequest) returns (ServerActionResponse) {}
+  rpc UpdatePlugins (UpdatePluginsRequest) returns (UpdatePluginsResponse) {}
+  rpc GetServerStatus (ServerActionRequest) returns (ServerStatusResponse) {}
+}
+
+message ProvisionRequest {
+  string name = 1;
+  string minecraftVersion = 2;
+  repeated Plugin plugins = 3;
+}
+
+message ProvisionResponse {
+  string instanceId = 1;
+  string message = 2;
+}
+
+message ServerActionRequest {
+  string instanceId = 1;
+}
+
+message ServerActionResponse {
+  string message = 1;
+}
+
+message UpdatePluginsRequest {
+  string instanceId = 1;
+  repeated Plugin plugins = 2;
+}
+
+message UpdatePluginsResponse {
+  string message = 1;
+}
+
+message ServerStatusResponse {
+  string instanceId = 1;
+  string status = 2;
+  string message = 3;
+}
+
+message Plugin {
+  string name = 1;
+  string version = 2;
+}
