@@ -141,11 +141,27 @@ const downloadServer = async (type, version) => {
   if (downloadQueue.value[version]) return
 
   downloadQueue.value[version] = {
-    status: 'Starting download...',
+    status: 'Checking cache...',
     percentage: 0
   }
 
   try {
+    // First check if the file is in the cache
+    const cacheResponse = await axios.get('/api/minecraft/cache')
+    const cachedFile = cacheResponse.data.find(entry => entry.type === type && entry.version === version)
+
+    if (cachedFile) {
+      downloadQueue.value[version].status = 'Using cached file'
+      downloadQueue.value[version].percentage = 100
+      setTimeout(() => {
+        delete downloadQueue.value[version]
+      }, 3000)
+      emit('download-complete')
+      return
+    }
+
+    // If not in cache, download it
+    downloadQueue.value[version].status = 'Starting download...'
     const response = await axios.post('/api/minecraft/download', { type, version }, {
       responseType: 'blob',
       onDownloadProgress: (progressEvent) => {

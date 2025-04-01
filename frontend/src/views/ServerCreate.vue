@@ -1,38 +1,39 @@
 <template>
   <div class="server-create">
-    <div class="max-w-2xl mx-auto">
-      <h2 class="text-2xl font-bold mb-6">Create New Server</h2>
+    <h2 class="text-2xl font-bold mb-6">Add New Server</h2>
 
-      <form @submit.prevent="handleSubmit" class="space-y-6">
-        <!-- Node Selection -->
-        <div>
-          <label for="node" class="block text-sm font-medium text-gray-700">Node</label>
-          <select
-            id="node"
-            v-model="formData.nodeId"
-            required
-            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          >
-            <option value="">Select a node</option>
-            <option v-for="node in nodes" :key="node._id" :value="node._id">
-              {{ node.name }}
-            </option>
-          </select>
-        </div>
+    <form @submit.prevent="handleSubmit" class="space-y-6">
+      <!-- Server Name -->
+      <div>
+        <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+        <input
+          type="text"
+          id="name"
+          v-model="formData.name"
+          required
+          class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+          placeholder="Enter server name"
+        />
+      </div>
 
-        <!-- Server Name -->
-        <div>
-          <label for="name" class="block text-sm font-medium text-gray-700">Server Name</label>
-          <input
-            type="text"
-            id="name"
-            v-model="formData.name"
-            required
-            class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-            placeholder="Enter server name"
-          />
-        </div>
+      <!-- Node Selection -->
+      <div>
+        <label for="node" class="block text-sm font-medium text-gray-700">Node</label>
+        <select
+          id="node"
+          v-model="formData.nodeId"
+          required
+          class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+        >
+          <option value="">Select a node</option>
+          <option v-for="node in nodes" :key="node._id" :value="node._id">
+            {{ node.name }}
+          </option>
+        </select>
+      </div>
 
+      <!-- Configuration Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Minecraft Configuration -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Minecraft Configuration</label>
@@ -42,32 +43,48 @@
           />
         </div>
 
-        <!-- Error Message -->
-        <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {{ error }}
+        <!-- Server Configuration -->
+        <div class="space-y-4">
+          <h3 class="text-sm font-medium text-gray-700">Server Settings</h3>
+          <SimpleConfigEditor v-model="config" />
         </div>
+      </div>
 
-        <!-- Submit Button -->
-        <div class="flex justify-end">
-          <button
-            type="submit"
-            :disabled="loading"
-            class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span v-if="loading">Creating...</span>
-            <span v-else>Create Server</span>
-          </button>
-        </div>
-      </form>
-    </div>
+      <!-- Error Message -->
+      <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        {{ error }}
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex justify-end space-x-3">
+        <button
+          type="button"
+          @click="emit('cancel')"
+          class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          :disabled="loading"
+          class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span v-if="loading">Creating...</span>
+          <span v-else>Add Server</span>
+        </button>
+      </div>
+    </form>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, defineEmits } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import MinecraftServerSelector from '../components/MinecraftServerSelector.vue'
+import SimpleConfigEditor from '../components/SimpleConfigEditor.vue'
+
+const emit = defineEmits(['cancel'])
 
 const router = useRouter()
 const nodes = ref([])
@@ -75,12 +92,26 @@ const loading = ref(false)
 const error = ref(null)
 
 const formData = ref({
+  _id: crypto.randomUUID(),
   nodeId: '',
   name: '',
   minecraftConfig: {
     type: '',
     version: ''
   }
+})
+
+const config = ref({
+  maxPlayers: 20,
+  difficulty: 'normal',
+  gameMode: 'survival',
+  memory: 2,
+  port: 25565,
+  viewDistance: 10,
+  spawnProtection: 16,
+  seed: '',
+  worldType: 'default',
+  generateStructures: true
 })
 
 const fetchNodes = async () => {
@@ -93,8 +124,8 @@ const fetchNodes = async () => {
   }
 }
 
-const handleMinecraftConfigUpdate = (config) => {
-  formData.value.minecraftConfig = config
+const handleMinecraftConfigUpdate = (minecraftConfig) => {
+  formData.value.minecraftConfig = minecraftConfig
 }
 
 const handleSubmit = async () => {
@@ -108,10 +139,12 @@ const handleSubmit = async () => {
     error.value = null
 
     const serverData = {
+      _id: formData.value._id,
       nodeId: formData.value.nodeId,
       name: formData.value.name,
       minecraftVersion: formData.value.minecraftConfig.version,
-      serverType: formData.value.minecraftConfig.type
+      serverType: formData.value.minecraftConfig.type,
+      ...config.value
     }
 
     await axios.post('/api/servers', serverData)
@@ -131,6 +164,6 @@ onMounted(() => {
 
 <style scoped>
 .server-create {
-  @apply p-6 bg-white rounded-lg shadow;
+  @apply p-6;
 }
 </style> 

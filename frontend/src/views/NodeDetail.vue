@@ -50,16 +50,16 @@
         <div class="bg-white rounded-lg shadow-md p-6">
           <h2 class="text-xl font-semibold mb-4">CPU Usage</h2>
           <div class="relative h-48">
-            <canvas ref="cpuChart"></canvas>
+            <canvas id="cpuChart" ref="cpuChartRef"></canvas>
           </div>
           <div class="mt-4 grid grid-cols-2 gap-4">
             <div>
               <p class="text-sm text-gray-600">Current Usage</p>
-              <p class="text-2xl font-bold">{{ metrics.cpuUsage }}%</p>
+              <p class="text-2xl font-bold">{{ metrics.cpuUsage.toFixed(2) }}%</p>
             </div>
             <div>
               <p class="text-sm text-gray-600">Cores</p>
-              <p class="text-2xl font-bold">{{ node.cpuCores }}</p>
+              <p class="text-2xl font-bold">{{ node.metrics?.cpuCores || 'N/A' }}</p>
             </div>
           </div>
         </div>
@@ -68,7 +68,7 @@
         <div class="bg-white rounded-lg shadow-md p-6">
           <h2 class="text-xl font-semibold mb-4">Memory Usage</h2>
           <div class="relative h-48">
-            <canvas ref="memoryChart"></canvas>
+            <canvas id="memoryChart" ref="memoryChartRef"></canvas>
           </div>
           <div class="mt-4 grid grid-cols-2 gap-4">
             <div>
@@ -86,7 +86,7 @@
         <div class="bg-white rounded-lg shadow-md p-6">
           <h2 class="text-xl font-semibold mb-4">Disk Usage</h2>
           <div class="relative h-48">
-            <canvas ref="diskChart"></canvas>
+            <canvas id="diskChart" ref="diskChartRef"></canvas>
           </div>
           <div class="mt-4 grid grid-cols-2 gap-4">
             <div>
@@ -104,7 +104,7 @@
         <div class="bg-white rounded-lg shadow-md p-6">
           <h2 class="text-xl font-semibold mb-4">Network Usage</h2>
           <div class="relative h-48">
-            <canvas ref="networkChart"></canvas>
+            <canvas id="networkChart" ref="networkChartRef"></canvas>
           </div>
           <div class="mt-4 grid grid-cols-2 gap-4">
             <div>
@@ -175,6 +175,13 @@ const metrics = ref({
   networkUpload: 0,
   networkDownload: 0
 });
+
+// Add refs for chart canvases
+const cpuChartRef = ref(null);
+const memoryChartRef = ref(null);
+const diskChartRef = ref(null);
+const networkChartRef = ref(null);
+
 const runningServers = ref([]);
 let pollInterval;
 let charts = {
@@ -182,6 +189,187 @@ let charts = {
   memory: null,
   disk: null,
   network: null
+};
+
+const destroyCharts = () => {
+  Object.values(charts).forEach(chart => {
+    if (chart) {
+      chart.destroy();
+    }
+  });
+  charts = {
+    cpu: null,
+    memory: null,
+    disk: null,
+    network: null
+  };
+};
+
+const initializeCharts = () => {
+  // Destroy existing charts first
+  destroyCharts();
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      duration: 300 // Add a small animation duration for smoother updates
+    },
+    scales: {
+      y: {
+        beginAtZero: true
+      },
+      x: {
+        display: true,
+        ticks: {
+          maxTicksLimit: 10,
+          maxRotation: 0 // Keep labels horizontal
+        }
+      }
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top'
+      }
+    },
+    elements: {
+      line: {
+        tension: 0.3
+      },
+      point: {
+        radius: 3, // Show points since we're updating less frequently
+        hoverRadius: 5
+      }
+    }
+  };
+
+  // CPU Chart
+  if (cpuChartRef.value) {
+    charts.cpu = new Chart(cpuChartRef.value.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'CPU Usage (%)',
+          data: [],
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          fill: true
+        }]
+      },
+      options: {
+        ...chartOptions,
+        scales: {
+          ...chartOptions.scales,
+          y: {
+            ...chartOptions.scales.y,
+            max: 100,
+            ticks: {
+              callback: value => value + '%'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Memory Chart
+  if (memoryChartRef.value) {
+    charts.memory = new Chart(memoryChartRef.value.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Memory Usage (GB)',
+          data: [],
+          borderColor: 'rgb(16, 185, 129)',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          fill: true
+        }]
+      },
+      options: {
+        ...chartOptions,
+        scales: {
+          ...chartOptions.scales,
+          y: {
+            ...chartOptions.scales.y,
+            ticks: {
+              callback: value => value.toFixed(1) + ' GB'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Disk Chart
+  if (diskChartRef.value) {
+    charts.disk = new Chart(diskChartRef.value.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Disk Usage (%)',
+          data: [],
+          borderColor: 'rgb(245, 158, 11)',
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          fill: true
+        }]
+      },
+      options: {
+        ...chartOptions,
+        scales: {
+          ...chartOptions.scales,
+          y: {
+            ...chartOptions.scales.y,
+            max: 100,
+            ticks: {
+              callback: value => value + '%'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Network Chart
+  if (networkChartRef.value) {
+    charts.network = new Chart(networkChartRef.value.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Upload (MB/s)',
+            data: [],
+            borderColor: 'rgb(139, 92, 246)',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            fill: true
+          },
+          {
+            label: 'Download (MB/s)',
+            data: [],
+            borderColor: 'rgb(236, 72, 153)',
+            backgroundColor: 'rgba(236, 72, 153, 0.1)',
+            fill: true
+          }
+        ]
+      },
+      options: {
+        ...chartOptions,
+        scales: {
+          ...chartOptions.scales,
+          y: {
+            ...chartOptions.scales.y,
+            ticks: {
+              callback: value => value.toFixed(1) + ' MB/s'
+            }
+          }
+        }
+      }
+    });
+  }
 };
 
 const fetchNodeDetails = async () => {
@@ -197,8 +385,11 @@ const fetchNodeDetails = async () => {
       networkUpload: node.value.metrics.networkBytesOut,
       networkDownload: node.value.metrics.networkBytesIn
     };
-    // Initialize charts after node data is loaded
-    initializeCharts();
+    
+    // Only initialize charts if they haven't been created yet
+    if (!charts.cpu) {
+      initializeCharts();
+    }
     updateCharts();
   } catch (error) {
     console.error('Failed to fetch node details:', error);
@@ -256,129 +447,64 @@ const formatTime = (timestamp) => {
   return date.toLocaleString();
 };
 
-const initializeCharts = () => {
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    scales: {
-      y: {
-        beginAtZero: true
-      }
-    }
-  };
-
-  // CPU Chart
-  const cpuCtx = document.querySelector('#cpuChart');
-  if (cpuCtx) {
-    charts.cpu = new Chart(cpuCtx.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'CPU Usage',
-          data: [],
-          borderColor: 'rgb(59, 130, 246)',
-          tension: 0.1
-        }]
-      },
-      options: chartOptions
-    });
-  }
-
-  // Memory Chart
-  const memoryCtx = document.querySelector('#memoryChart');
-  if (memoryCtx) {
-    charts.memory = new Chart(memoryCtx.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Memory Usage',
-          data: [],
-          borderColor: 'rgb(16, 185, 129)',
-          tension: 0.1
-        }]
-      },
-      options: chartOptions
-    });
-  }
-
-  // Disk Chart
-  const diskCtx = document.querySelector('#diskChart');
-  if (diskCtx) {
-    charts.disk = new Chart(diskCtx.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Disk Usage',
-          data: [],
-          borderColor: 'rgb(245, 158, 11)',
-          tension: 0.1
-        }]
-      },
-      options: chartOptions
-    });
-  }
-
-  // Network Chart
-  const networkCtx = document.querySelector('#networkChart');
-  if (networkCtx) {
-    charts.network = new Chart(networkCtx.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Network Usage',
-          data: [],
-          borderColor: 'rgb(139, 92, 246)',
-          tension: 0.1
-        }]
-      },
-      options: chartOptions
-    });
-  }
-};
-
 const updateCharts = () => {
+  if (!charts.cpu || !charts.memory || !charts.disk || !charts.network) {
+    return;
+  }
+
   const timestamp = new Date().toLocaleTimeString();
+  const maxDataPoints = 20; // Keep 20 data points (10 minute window with 30s updates)
   
   // Update CPU Chart
-  charts.cpu.data.labels.push(timestamp);
-  charts.cpu.data.datasets[0].data.push(metrics.value.cpuUsage);
-  if (charts.cpu.data.labels.length > 20) {
-    charts.cpu.data.labels.shift();
-    charts.cpu.data.datasets[0].data.shift();
+  if (charts.cpu) {
+    charts.cpu.data.labels.push(timestamp);
+    charts.cpu.data.datasets[0].data.push(metrics.value.cpuUsage);
+    if (charts.cpu.data.labels.length > maxDataPoints) {
+      charts.cpu.data.labels.shift();
+      charts.cpu.data.datasets[0].data.shift();
+    }
+    charts.cpu.update();  // Allow animation since we're updating less frequently
   }
-  charts.cpu.update();
 
   // Update Memory Chart
-  charts.memory.data.labels.push(timestamp);
-  charts.memory.data.datasets[0].data.push(metrics.value.memoryUsed);
-  if (charts.memory.data.labels.length > 20) {
-    charts.memory.data.labels.shift();
-    charts.memory.data.datasets[0].data.shift();
+  if (charts.memory) {
+    const memoryGB = metrics.value.memoryUsed / (1024 * 1024 * 1024);
+    charts.memory.data.labels.push(timestamp);
+    charts.memory.data.datasets[0].data.push(memoryGB);
+    if (charts.memory.data.labels.length > maxDataPoints) {
+      charts.memory.data.labels.shift();
+      charts.memory.data.datasets[0].data.shift();
+    }
+    charts.memory.update();
   }
-  charts.memory.update();
 
   // Update Disk Chart
-  charts.disk.data.labels.push(timestamp);
-  charts.disk.data.datasets[0].data.push(metrics.value.diskUsage);
-  if (charts.disk.data.labels.length > 20) {
-    charts.disk.data.labels.shift();
-    charts.disk.data.datasets[0].data.shift();
+  if (charts.disk) {
+    charts.disk.data.labels.push(timestamp);
+    charts.disk.data.datasets[0].data.push(metrics.value.diskUsage);
+    if (charts.disk.data.labels.length > maxDataPoints) {
+      charts.disk.data.labels.shift();
+      charts.disk.data.datasets[0].data.shift();
+    }
+    charts.disk.update();
   }
-  charts.disk.update();
 
   // Update Network Chart
-  charts.network.data.labels.push(timestamp);
-  charts.network.data.datasets[0].data.push(metrics.value.networkUpload + metrics.value.networkDownload);
-  if (charts.network.data.labels.length > 20) {
-    charts.network.data.labels.shift();
-    charts.network.data.datasets[0].data.shift();
+  if (charts.network) {
+    const uploadMB = metrics.value.networkUpload / (1024 * 1024);
+    const downloadMB = metrics.value.networkDownload / (1024 * 1024);
+    
+    charts.network.data.labels.push(timestamp);
+    charts.network.data.datasets[0].data.push(uploadMB);
+    charts.network.data.datasets[1].data.push(downloadMB);
+    
+    if (charts.network.data.labels.length > maxDataPoints) {
+      charts.network.data.labels.shift();
+      charts.network.data.datasets[0].data.shift();
+      charts.network.data.datasets[1].data.shift();
+    }
+    charts.network.update();
   }
-  charts.network.update();
 };
 
 const viewServer = (serverId) => {
@@ -398,11 +524,11 @@ onMounted(() => {
   fetchNodeDetails();
   fetchRunningServers();
   
-  // Poll for updates every 5 seconds
+  // Poll for updates every 30 seconds
   pollInterval = setInterval(() => {
     fetchNodeDetails();
     fetchRunningServers();
-  }, 5000);
+  }, 30000);
 });
 
 onUnmounted(() => {
@@ -410,10 +536,6 @@ onUnmounted(() => {
     clearInterval(pollInterval);
   }
   // Clean up charts
-  Object.values(charts).forEach(chart => {
-    if (chart) {
-      chart.destroy();
-    }
-  });
+  destroyCharts();
 });
 </script> 

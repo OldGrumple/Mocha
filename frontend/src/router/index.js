@@ -1,14 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ServerList from '../views/ServersView.vue'
 import ServerCreate from '../views/ServerCreate.vue'
-import ServerDetails from '../views/ServerDetails.vue'
 import ServerConfig from '../views/ServerConfig.vue'
 import MinecraftCacheManager from '../components/MinecraftCacheManager.vue'
+import ServerDetail from '../views/ServerDetail.vue'
 
 const routes = [
   {
     path: '/',
-    redirect: '/nodes'
+    redirect: '/servers'
   },
   {
     path: '/nodes',
@@ -32,8 +32,8 @@ const routes = [
   },
   {
     path: '/servers/:id',
-    name: 'server-details',
-    component: ServerDetails
+    name: 'server-detail',
+    component: ServerDetail
   },
   {
     path: '/servers/:id/config',
@@ -48,7 +48,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(process.env.BASE_URL),
   routes
 })
 

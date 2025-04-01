@@ -45,9 +45,10 @@
               </thead>
               <tbody class="divide-y divide-gray-200 bg-white">
                 <tr v-for="server in servers" 
-                :key="server._id" 
-                class="cursor-pointer hover:bg-gray-50" 
-                @click="navigateToServer(server)">
+                    :key="server._id" 
+                    class="cursor-pointer hover:bg-gray-50" 
+                    @click="navigateToServer(server)"
+                >
                   <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                     {{ server.name }}
                   </td>
@@ -58,7 +59,12 @@
                     {{ server.minecraftVersion }}
                   </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    <span :class="getStatusClass(server.status)">{{ server.status }}</span>
+                    <div v-if="isProvisioning(server.status)">
+                      <ServerProvisioningStatus :server="server" />
+                    </div>
+                    <span v-else :class="getStatusClass(server.status)">
+                      {{ server.status }}
+                    </span>
                   </td>
                   <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                     <div class="flex justify-end space-x-2">
@@ -127,13 +133,11 @@
             </select>
           </div>
           <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700">Minecraft Version</label>
-            <input
-              v-model="newServer.minecraftVersion"
-              type="text"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              required
-            >
+            <label class="block text-sm font-medium text-gray-700 mb-2">Minecraft Configuration</label>
+            <MinecraftServerSelector
+              v-model="newServer.minecraftConfig"
+              @update:modelValue="handleMinecraftConfigUpdate"
+            />
           </div>
           <div class="flex justify-end space-x-3">
             <button
@@ -223,17 +227,22 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import ServerProvisioningStatus from '@/components/ServerProvisioningStatus.vue'
+import MinecraftServerSelector from '../components/MinecraftServerSelector.vue'
 
 const router = useRouter()
 const servers = ref([])
 const nodes = ref([])
 const showAddServerModal = ref(false)
 const selectedServer = ref(null)
+const error = ref(null)
 const newServer = ref({
   name: '',
   nodeId: '',
-  minecraftVersion: '',
-  plugins: []
+  minecraftConfig: {
+    type: '',
+    version: ''
+  }
 })
 const showDeleteModal = ref(false)
 const serverToDelete = ref(null)
@@ -241,7 +250,11 @@ const serverToDelete = ref(null)
 const fetchServers = async () => {
   try {
     const response = await axios.get('/api/servers')
-    servers.value = response.data.servers
+    servers.value = response.data.servers.map(server => ({
+      ...server,
+      instanceId: server.instanceId || server._id // Use _id as fallback for instanceId
+    }))
+    console.log('Fetched servers:', servers.value)
   } catch (error) {
     console.error('Error fetching servers:', error)
   }
@@ -256,14 +269,39 @@ const fetchNodes = async () => {
   }
 }
 
+const handleMinecraftConfigUpdate = (config) => {
+  newServer.value.minecraftConfig = config
+}
+
 const addServer = async () => {
+  error.value = null // Reset error state
+  if (!newServer.value.minecraftConfig.type || !newServer.value.minecraftConfig.version) {
+    error.value = 'Please select both server type and version'
+    return
+  }
+
   try {
-    const response = await axios.post('/api/servers', newServer.value)
-    servers.value.push(response.data.newServer)
+    const serverData = {
+      name: newServer.value.name,
+      nodeId: newServer.value.nodeId,
+      minecraftVersion: newServer.value.minecraftConfig.version,
+      serverType: newServer.value.minecraftConfig.type
+    }
+
+    await axios.post('/api/servers', serverData)
     showAddServerModal.value = false
-    newServer.value = { name: '', nodeId: '', minecraftVersion: '', plugins: [] }
-  } catch (error) {
-    console.error('Error adding server:', error)
+    newServer.value = {
+      name: '',
+      nodeId: '',
+      minecraftConfig: {
+        type: '',
+        version: ''
+      }
+    }
+    fetchServers()
+  } catch (err) {
+    error.value = err.response?.data?.error || 'Failed to create server'
+    console.error('Error creating server:', err)
   }
 }
 
@@ -302,13 +340,30 @@ const confirmDeleteServer = (server) => {
 
 const deleteServer = async () => {
   try {
-    await axios.delete(`/api/servers/${serverToDelete.value._id}`)
-    servers.value = servers.value.filter(s => s._id !== serverToDelete.value._id)
-    showDeleteModal.value = false
-    serverToDelete.value = null
+    if (!serverToDelete.value) {
+      console.error('No server selected for deletion');
+      return;
+    }
+
+    console.log('Deleting server:', {
+      id: serverToDelete.value._id,
+      instanceId: serverToDelete.value.instanceId,
+      name: serverToDelete.value.name
+    });
+
+    if (!serverToDelete.value.instanceId) {
+      console.error('Server has no instanceId:', serverToDelete.value._id);
+      alert('Server has no instanceId. Please try again.');
+      return;
+    }
+
+    await axios.delete(`/api/servers/${serverToDelete.value._id}`);
+    servers.value = servers.value.filter(s => s._id !== serverToDelete.value._id);
+    showDeleteModal.value = false;
+    serverToDelete.value = null;
   } catch (error) {
-    console.error('Error deleting server:', error)
-    alert(error.response?.data?.error || 'Failed to delete server. Please try again.')
+    console.error('Error deleting server:', error);
+    alert(error.response?.data?.error || 'Failed to delete server. Please try again.');
   }
 }
 
@@ -318,6 +373,10 @@ const navigateToServer = (server) => {
 
 const navigateToConfig = (server) => {
   router.push(`/servers/${server._id}/config`)
+}
+
+const isProvisioning = (status) => {
+  return status.startsWith('provisioning') || status === 'failed'
 }
 
 onMounted(() => {
