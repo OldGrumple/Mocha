@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package agent;
 
+option go_package = "mocha-agent/proto";
+
 service AgentService {
   rpc ProvisionServer (ProvisionRequest) returns (ProvisionResponse) {}
   rpc StartServer (ServerActionRequest) returns (ServerActionResponse) {}
@@ -9,6 +11,8 @@ service AgentService {
   rpc DeleteServer (ServerActionRequest) returns (ServerActionResponse) {}
   rpc UpdatePlugins (UpdatePluginsRequest) returns (UpdatePluginsResponse) {}
   rpc GetServerStatus (ServerActionRequest) returns (ServerStatusResponse) {}
+  rpc RegisterNode (RegisterNodeRequest) returns (RegisterNodeResponse) {}
+  rpc Heartbeat (HeartbeatRequest) returns (HeartbeatResponse) {}
 }
 
 message ProvisionRequest {
@@ -48,4 +52,47 @@ message ServerStatusResponse {
 message Plugin {
   string name = 1;
   string version = 2;
+}
+
+message RegisterNodeRequest {
+  string nodeId = 1;
+  string hostname = 2;
+  string os = 3;
+  int64 memoryBytes = 4;
+  int32 cpuCores = 5;
+  string ipAddress = 6;
+}
+
+message RegisterNodeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message HeartbeatRequest {
+  string nodeId = 1;
+  repeated ServerStatus servers = 2;
+  SystemMetrics metrics = 3;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ServerStatus {
+  string instanceId = 1;
+  string status = 2;
+  int32 playerCount = 3;
+  float cpuUsage = 4;
+  int64 memoryUsage = 5;
+  int64 uptime = 6;
+}
+
+message SystemMetrics {
+  float cpuUsage = 1;
+  int64 memoryUsed = 2;
+  int64 memoryTotal = 3;
+  float diskUsage = 4;
+  int64 networkBytesIn = 5;
+  int64 networkBytesOut = 6;
 }

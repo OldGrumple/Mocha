@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	pb "mocha-agent/pkg/grpc"
+	pb "mocha-agent/proto"
 )
 
 type Manager struct {
@@ -173,4 +173,4 @@ func (m *Manager) GetServerStatus(ctx context.Context, req *pb.ServerActionReque
 		Status:     server.Status,
 		Message:    fmt.Sprintf("Server is %s", server.Status),
 	}, nil
-} 
+}
