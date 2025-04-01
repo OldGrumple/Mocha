@@ -18,10 +18,35 @@ import (
 var (
 	port   = flag.Int("port", 50051, "The server port")
 	apiURL = flag.String("api-url", "http://localhost:3000", "The Node.js API URL")
+	apiKey = flag.String("api-key", "", "The API key for authentication")
+	help   = flag.Bool("help", false, "Display help information")
 )
+
+func printHelp() {
+	fmt.Println("Mocha Agent Master")
+	fmt.Println("------------------")
+	fmt.Println("A gRPC server that manages Minecraft server agents.")
+	fmt.Println("\nRequired Flags:")
+	fmt.Println("  --port <number>     The port to listen on (default: 50051)")
+	fmt.Println("  --api-url <url>     The URL of the Node.js API (default: http://localhost:3000)")
+	fmt.Println("  --api-key <key>     The API key for authentication")
+	fmt.Println("\nOptional Flags:")
+	fmt.Println("  --help             Display this help message")
+	fmt.Println("\nExample:")
+	fmt.Println("  master --port 50051 --api-url http://localhost:3000 --api-key your-api-key")
+}
 
 func main() {
 	flag.Parse()
+
+	if *help {
+		printHelp()
+		os.Exit(0)
+	}
+
+	if *apiKey == "" {
+		log.Fatal("API key is required")
+	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
@@ -32,7 +57,7 @@ func main() {
 	s := grpc.NewServer()
 
 	// Create and start the node manager
-	nodeManager := node.NewManager(*apiURL)
+	nodeManager := node.NewManager(*apiURL, *apiKey, false)
 	nodeManager.Start()
 
 	// Register the service

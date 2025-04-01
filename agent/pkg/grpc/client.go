@@ -3,10 +3,14 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
 	"runtime"
 	"time"
 
 	pb "mocha-agent/proto"
+
+	"mocha-agent/pkg/metrics"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,9 +20,10 @@ type AgentClient struct {
 	conn   *grpc.ClientConn
 	client pb.AgentServiceClient
 	nodeID string
+	apiKey string
 }
 
-func NewAgentClient(masterAddr string, nodeID string) (*AgentClient, error) {
+func NewAgentClient(masterAddr string, nodeID string, apiKey string) (*AgentClient, error) {
 	conn, err := grpc.Dial(masterAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to master: %v", err)
@@ -29,6 +34,7 @@ func NewAgentClient(masterAddr string, nodeID string) (*AgentClient, error) {
 		conn:   conn,
 		client: client,
 		nodeID: nodeID,
+		apiKey: apiKey,
 	}, nil
 }
 
@@ -54,6 +60,8 @@ func (c *AgentClient) RegisterNode(ctx context.Context) error {
 
 	req := &pb.RegisterNodeRequest{
 		NodeId:      c.nodeID,
+		ApiKey:      c.apiKey,
+		Address:     c.conn.Target(),
 		Hostname:    hostname,
 		Os:          runtime.GOOS,
 		MemoryBytes: memBytes,
@@ -99,9 +107,11 @@ func (c *AgentClient) sendHeartbeat(ctx context.Context) error {
 	servers := []*pb.ServerStatus{}
 
 	req := &pb.HeartbeatRequest{
-		NodeId:  c.nodeID,
-		Servers: servers,
-		Metrics: metrics,
+		NodeId:    c.nodeID,
+		Timestamp: time.Now().Unix(),
+		Servers:   servers,
+		Metrics:   metrics,
+		ApiKey:    c.apiKey,
 	}
 
 	resp, err := c.client.Heartbeat(ctx, req)
@@ -118,73 +128,112 @@ func (c *AgentClient) sendHeartbeat(ctx context.Context) error {
 
 // Helper functions for system information
 func getHostname() (string, error) {
-	// TODO: Implement hostname retrieval
-	return "localhost", nil
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "", fmt.Errorf("failed to get hostname: %v", err)
+	}
+	return hostname, nil
 }
 
 func getIPAddress() (string, error) {
-	// TODO: Implement IP address retrieval
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", fmt.Errorf("failed to get interface addresses: %v", err)
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String(), nil
+			}
+		}
+	}
+
 	return "127.0.0.1", nil
 }
 
 func getTotalMemory() (int64, error) {
-	// TODO: Implement total memory retrieval
-	return 8589934592, nil // 8GB example
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	return int64(mem.Sys), nil
 }
 
 func getSystemMetrics() (*pb.SystemMetrics, error) {
-	// TODO: Implement actual system metrics collection
+	collector := metrics.NewCollector()
 	return &pb.SystemMetrics{
-		CpuUsage:        0.5,
-		MemoryUsed:      4294967296, // 4GB
-		MemoryTotal:     8589934592, // 8GB
-		DiskUsage:       0.7,
-		NetworkBytesIn:  1024,
-		NetworkBytesOut: 2048,
+		CpuUsage:        collector.GetCPUUsage(),
+		CpuCores:        int32(collector.GetCPUCores()),
+		MemoryUsed:      collector.GetUsedMemory(),
+		MemoryTotal:     collector.GetTotalMemory(),
+		DiskUsage:       collector.GetDiskUsage(),
+		NetworkBytesIn:  collector.GetNetworkBytesIn(),
+		NetworkBytesOut: collector.GetNetworkBytesOut(),
 	}, nil
 }
 
-func (c *AgentClient) ProvisionServer(ctx context.Context, name, minecraftVersion string, plugins []*pb.Plugin) (*pb.ProvisionResponse, error) {
+func (c *AgentClient) ProvisionServer(ctx context.Context, name, minecraftVersion string) (*pb.ProvisionResponse, error) {
 	req := &pb.ProvisionRequest{
-		Name:             name,
-		MinecraftVersion: minecraftVersion,
-		Plugins:          plugins,
+		NodeId:   c.nodeID,
+		ServerId: name,
+		Version:  minecraftVersion,
+		ApiKey:   c.apiKey,
 	}
 	return c.client.ProvisionServer(ctx, req)
 }
 
-func (c *AgentClient) StartServer(ctx context.Context, instanceID string) (*pb.ServerActionResponse, error) {
-	req := &pb.ServerActionRequest{
-		InstanceId: instanceID,
+func (c *AgentClient) StartServer(ctx context.Context, instanceID string) (*pb.ServerOperationResponse, error) {
+	req := &pb.ServerOperationRequest{
+		NodeId:   c.nodeID,
+		ServerId: instanceID,
+		ApiKey:   c.apiKey,
 	}
 	return c.client.StartServer(ctx, req)
 }
 
-func (c *AgentClient) StopServer(ctx context.Context, instanceID string) (*pb.ServerActionResponse, error) {
-	req := &pb.ServerActionRequest{
-		InstanceId: instanceID,
+func (c *AgentClient) StopServer(ctx context.Context, instanceID string) (*pb.ServerOperationResponse, error) {
+	req := &pb.ServerOperationRequest{
+		NodeId:   c.nodeID,
+		ServerId: instanceID,
+		ApiKey:   c.apiKey,
 	}
 	return c.client.StopServer(ctx, req)
 }
 
-func (c *AgentClient) DeleteServer(ctx context.Context, instanceID string) (*pb.ServerActionResponse, error) {
-	req := &pb.ServerActionRequest{
-		InstanceId: instanceID,
+func (c *AgentClient) DeleteServer(ctx context.Context, instanceID string) (*pb.ServerOperationResponse, error) {
+	req := &pb.ServerOperationRequest{
+		NodeId:   c.nodeID,
+		ServerId: instanceID,
+		ApiKey:   c.apiKey,
 	}
 	return c.client.DeleteServer(ctx, req)
 }
 
-func (c *AgentClient) UpdatePlugins(ctx context.Context, instanceID string, plugins []*pb.Plugin) (*pb.UpdatePluginsResponse, error) {
-	req := &pb.UpdatePluginsRequest{
+func (c *AgentClient) ExecuteServerAction(ctx context.Context, instanceID string, action string) (*pb.ServerActionResponse, error) {
+	req := &pb.ServerActionRequest{
+		NodeId:     c.nodeID,
+		ServerId:   instanceID,
+		Action:     action,
+		ApiKey:     c.apiKey,
 		InstanceId: instanceID,
-		Plugins:    plugins,
 	}
-	return c.client.UpdatePlugins(ctx, req)
+	return c.client.ExecuteServerAction(ctx, req)
+}
+
+func (c *AgentClient) UpdateServerPlugins(ctx context.Context, instanceID string, plugins []string) (*pb.UpdatePluginsResponse, error) {
+	req := &pb.UpdatePluginsRequest{
+		NodeId:   c.nodeID,
+		ServerId: instanceID,
+		Plugins:  plugins,
+		ApiKey:   c.apiKey,
+	}
+	return c.client.UpdateServerPlugins(ctx, req)
 }
 
 func (c *AgentClient) GetServerStatus(ctx context.Context, instanceID string) (*pb.ServerStatusResponse, error) {
-	req := &pb.ServerActionRequest{
-		InstanceId: instanceID,
+	req := &pb.ServerOperationRequest{
+		NodeId:   c.nodeID,
+		ServerId: instanceID,
+		ApiKey:   c.apiKey,
 	}
 	return c.client.GetServerStatus(ctx, req)
 }

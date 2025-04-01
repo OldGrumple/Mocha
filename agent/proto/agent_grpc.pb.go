@@ -19,28 +19,41 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AgentService_ProvisionServer_FullMethodName = "/agent.AgentService/ProvisionServer"
-	AgentService_StartServer_FullMethodName     = "/agent.AgentService/StartServer"
-	AgentService_StopServer_FullMethodName      = "/agent.AgentService/StopServer"
-	AgentService_DeleteServer_FullMethodName    = "/agent.AgentService/DeleteServer"
-	AgentService_UpdatePlugins_FullMethodName   = "/agent.AgentService/UpdatePlugins"
-	AgentService_GetServerStatus_FullMethodName = "/agent.AgentService/GetServerStatus"
-	AgentService_RegisterNode_FullMethodName    = "/agent.AgentService/RegisterNode"
-	AgentService_Heartbeat_FullMethodName       = "/agent.AgentService/Heartbeat"
+	AgentService_RegisterNode_FullMethodName        = "/agent.AgentService/RegisterNode"
+	AgentService_Heartbeat_FullMethodName           = "/agent.AgentService/Heartbeat"
+	AgentService_StartServer_FullMethodName         = "/agent.AgentService/StartServer"
+	AgentService_StopServer_FullMethodName          = "/agent.AgentService/StopServer"
+	AgentService_DeleteServer_FullMethodName        = "/agent.AgentService/DeleteServer"
+	AgentService_ProvisionServer_FullMethodName     = "/agent.AgentService/ProvisionServer"
+	AgentService_ExecuteServerAction_FullMethodName = "/agent.AgentService/ExecuteServerAction"
+	AgentService_UpdateServerPlugins_FullMethodName = "/agent.AgentService/UpdateServerPlugins"
+	AgentService_GetServerStatus_FullMethodName     = "/agent.AgentService/GetServerStatus"
 )
 
 // AgentServiceClient is the client API for AgentService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// The agent service definition
 type AgentServiceClient interface {
-	ProvisionServer(ctx context.Context, in *ProvisionRequest, opts ...grpc.CallOption) (*ProvisionResponse, error)
-	StartServer(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerActionResponse, error)
-	StopServer(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerActionResponse, error)
-	DeleteServer(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerActionResponse, error)
-	UpdatePlugins(ctx context.Context, in *UpdatePluginsRequest, opts ...grpc.CallOption) (*UpdatePluginsResponse, error)
-	GetServerStatus(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerStatusResponse, error)
+	// Register a new node
 	RegisterNode(ctx context.Context, in *RegisterNodeRequest, opts ...grpc.CallOption) (*RegisterNodeResponse, error)
+	// Send heartbeat
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
+	// Start a server
+	StartServer(ctx context.Context, in *ServerOperationRequest, opts ...grpc.CallOption) (*ServerOperationResponse, error)
+	// Stop a server
+	StopServer(ctx context.Context, in *ServerOperationRequest, opts ...grpc.CallOption) (*ServerOperationResponse, error)
+	// Delete a server
+	DeleteServer(ctx context.Context, in *ServerOperationRequest, opts ...grpc.CallOption) (*ServerOperationResponse, error)
+	// Provision a server
+	ProvisionServer(ctx context.Context, in *ProvisionRequest, opts ...grpc.CallOption) (*ProvisionResponse, error)
+	// Execute server action
+	ExecuteServerAction(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerActionResponse, error)
+	// Update server plugins
+	UpdateServerPlugins(ctx context.Context, in *UpdatePluginsRequest, opts ...grpc.CallOption) (*UpdatePluginsResponse, error)
+	// Get server status
+	GetServerStatus(ctx context.Context, in *ServerOperationRequest, opts ...grpc.CallOption) (*ServerStatusResponse, error)
 }
 
 type agentServiceClient struct {
@@ -49,66 +62,6 @@ type agentServiceClient struct {
 
 func NewAgentServiceClient(cc grpc.ClientConnInterface) AgentServiceClient {
 	return &agentServiceClient{cc}
-}
-
-func (c *agentServiceClient) ProvisionServer(ctx context.Context, in *ProvisionRequest, opts ...grpc.CallOption) (*ProvisionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ProvisionResponse)
-	err := c.cc.Invoke(ctx, AgentService_ProvisionServer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *agentServiceClient) StartServer(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerActionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ServerActionResponse)
-	err := c.cc.Invoke(ctx, AgentService_StartServer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *agentServiceClient) StopServer(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerActionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ServerActionResponse)
-	err := c.cc.Invoke(ctx, AgentService_StopServer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *agentServiceClient) DeleteServer(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerActionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ServerActionResponse)
-	err := c.cc.Invoke(ctx, AgentService_DeleteServer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *agentServiceClient) UpdatePlugins(ctx context.Context, in *UpdatePluginsRequest, opts ...grpc.CallOption) (*UpdatePluginsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdatePluginsResponse)
-	err := c.cc.Invoke(ctx, AgentService_UpdatePlugins_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *agentServiceClient) GetServerStatus(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerStatusResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ServerStatusResponse)
-	err := c.cc.Invoke(ctx, AgentService_GetServerStatus_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *agentServiceClient) RegisterNode(ctx context.Context, in *RegisterNodeRequest, opts ...grpc.CallOption) (*RegisterNodeResponse, error) {
@@ -131,18 +84,100 @@ func (c *agentServiceClient) Heartbeat(ctx context.Context, in *HeartbeatRequest
 	return out, nil
 }
 
+func (c *agentServiceClient) StartServer(ctx context.Context, in *ServerOperationRequest, opts ...grpc.CallOption) (*ServerOperationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ServerOperationResponse)
+	err := c.cc.Invoke(ctx, AgentService_StartServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) StopServer(ctx context.Context, in *ServerOperationRequest, opts ...grpc.CallOption) (*ServerOperationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ServerOperationResponse)
+	err := c.cc.Invoke(ctx, AgentService_StopServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DeleteServer(ctx context.Context, in *ServerOperationRequest, opts ...grpc.CallOption) (*ServerOperationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ServerOperationResponse)
+	err := c.cc.Invoke(ctx, AgentService_DeleteServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ProvisionServer(ctx context.Context, in *ProvisionRequest, opts ...grpc.CallOption) (*ProvisionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProvisionResponse)
+	err := c.cc.Invoke(ctx, AgentService_ProvisionServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ExecuteServerAction(ctx context.Context, in *ServerActionRequest, opts ...grpc.CallOption) (*ServerActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ServerActionResponse)
+	err := c.cc.Invoke(ctx, AgentService_ExecuteServerAction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) UpdateServerPlugins(ctx context.Context, in *UpdatePluginsRequest, opts ...grpc.CallOption) (*UpdatePluginsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdatePluginsResponse)
+	err := c.cc.Invoke(ctx, AgentService_UpdateServerPlugins_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetServerStatus(ctx context.Context, in *ServerOperationRequest, opts ...grpc.CallOption) (*ServerStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ServerStatusResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetServerStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
+//
+// The agent service definition
 type AgentServiceServer interface {
-	ProvisionServer(context.Context, *ProvisionRequest) (*ProvisionResponse, error)
-	StartServer(context.Context, *ServerActionRequest) (*ServerActionResponse, error)
-	StopServer(context.Context, *ServerActionRequest) (*ServerActionResponse, error)
-	DeleteServer(context.Context, *ServerActionRequest) (*ServerActionResponse, error)
-	UpdatePlugins(context.Context, *UpdatePluginsRequest) (*UpdatePluginsResponse, error)
-	GetServerStatus(context.Context, *ServerActionRequest) (*ServerStatusResponse, error)
+	// Register a new node
 	RegisterNode(context.Context, *RegisterNodeRequest) (*RegisterNodeResponse, error)
+	// Send heartbeat
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
+	// Start a server
+	StartServer(context.Context, *ServerOperationRequest) (*ServerOperationResponse, error)
+	// Stop a server
+	StopServer(context.Context, *ServerOperationRequest) (*ServerOperationResponse, error)
+	// Delete a server
+	DeleteServer(context.Context, *ServerOperationRequest) (*ServerOperationResponse, error)
+	// Provision a server
+	ProvisionServer(context.Context, *ProvisionRequest) (*ProvisionResponse, error)
+	// Execute server action
+	ExecuteServerAction(context.Context, *ServerActionRequest) (*ServerActionResponse, error)
+	// Update server plugins
+	UpdateServerPlugins(context.Context, *UpdatePluginsRequest) (*UpdatePluginsResponse, error)
+	// Get server status
+	GetServerStatus(context.Context, *ServerOperationRequest) (*ServerStatusResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -153,29 +188,32 @@ type AgentServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAgentServiceServer struct{}
 
-func (UnimplementedAgentServiceServer) ProvisionServer(context.Context, *ProvisionRequest) (*ProvisionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ProvisionServer not implemented")
-}
-func (UnimplementedAgentServiceServer) StartServer(context.Context, *ServerActionRequest) (*ServerActionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method StartServer not implemented")
-}
-func (UnimplementedAgentServiceServer) StopServer(context.Context, *ServerActionRequest) (*ServerActionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method StopServer not implemented")
-}
-func (UnimplementedAgentServiceServer) DeleteServer(context.Context, *ServerActionRequest) (*ServerActionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteServer not implemented")
-}
-func (UnimplementedAgentServiceServer) UpdatePlugins(context.Context, *UpdatePluginsRequest) (*UpdatePluginsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdatePlugins not implemented")
-}
-func (UnimplementedAgentServiceServer) GetServerStatus(context.Context, *ServerActionRequest) (*ServerStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetServerStatus not implemented")
-}
 func (UnimplementedAgentServiceServer) RegisterNode(context.Context, *RegisterNodeRequest) (*RegisterNodeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterNode not implemented")
 }
 func (UnimplementedAgentServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
+}
+func (UnimplementedAgentServiceServer) StartServer(context.Context, *ServerOperationRequest) (*ServerOperationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartServer not implemented")
+}
+func (UnimplementedAgentServiceServer) StopServer(context.Context, *ServerOperationRequest) (*ServerOperationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopServer not implemented")
+}
+func (UnimplementedAgentServiceServer) DeleteServer(context.Context, *ServerOperationRequest) (*ServerOperationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteServer not implemented")
+}
+func (UnimplementedAgentServiceServer) ProvisionServer(context.Context, *ProvisionRequest) (*ProvisionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ProvisionServer not implemented")
+}
+func (UnimplementedAgentServiceServer) ExecuteServerAction(context.Context, *ServerActionRequest) (*ServerActionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecuteServerAction not implemented")
+}
+func (UnimplementedAgentServiceServer) UpdateServerPlugins(context.Context, *UpdatePluginsRequest) (*UpdatePluginsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateServerPlugins not implemented")
+}
+func (UnimplementedAgentServiceServer) GetServerStatus(context.Context, *ServerOperationRequest) (*ServerStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetServerStatus not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -196,114 +234,6 @@ func RegisterAgentServiceServer(s grpc.ServiceRegistrar, srv AgentServiceServer)
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&AgentService_ServiceDesc, srv)
-}
-
-func _AgentService_ProvisionServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ProvisionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServiceServer).ProvisionServer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AgentService_ProvisionServer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServiceServer).ProvisionServer(ctx, req.(*ProvisionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AgentService_StartServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ServerActionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServiceServer).StartServer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AgentService_StartServer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServiceServer).StartServer(ctx, req.(*ServerActionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AgentService_StopServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ServerActionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServiceServer).StopServer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AgentService_StopServer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServiceServer).StopServer(ctx, req.(*ServerActionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AgentService_DeleteServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ServerActionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServiceServer).DeleteServer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AgentService_DeleteServer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServiceServer).DeleteServer(ctx, req.(*ServerActionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AgentService_UpdatePlugins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdatePluginsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServiceServer).UpdatePlugins(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AgentService_UpdatePlugins_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServiceServer).UpdatePlugins(ctx, req.(*UpdatePluginsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AgentService_GetServerStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ServerActionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AgentServiceServer).GetServerStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AgentService_GetServerStatus_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentServiceServer).GetServerStatus(ctx, req.(*ServerActionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _AgentService_RegisterNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -342,6 +272,132 @@ func _AgentService_Heartbeat_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_StartServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ServerOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).StartServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_StartServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).StartServer(ctx, req.(*ServerOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_StopServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ServerOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).StopServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_StopServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).StopServer(ctx, req.(*ServerOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DeleteServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ServerOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeleteServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DeleteServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeleteServer(ctx, req.(*ServerOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ProvisionServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProvisionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ProvisionServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ProvisionServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ProvisionServer(ctx, req.(*ProvisionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ExecuteServerAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ServerActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ExecuteServerAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ExecuteServerAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ExecuteServerAction(ctx, req.(*ServerActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_UpdateServerPlugins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdatePluginsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).UpdateServerPlugins(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_UpdateServerPlugins_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).UpdateServerPlugins(ctx, req.(*UpdatePluginsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetServerStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ServerOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetServerStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetServerStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetServerStatus(ctx, req.(*ServerOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -350,8 +406,12 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AgentServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ProvisionServer",
-			Handler:    _AgentService_ProvisionServer_Handler,
+			MethodName: "RegisterNode",
+			Handler:    _AgentService_RegisterNode_Handler,
+		},
+		{
+			MethodName: "Heartbeat",
+			Handler:    _AgentService_Heartbeat_Handler,
 		},
 		{
 			MethodName: "StartServer",
@@ -366,20 +426,20 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AgentService_DeleteServer_Handler,
 		},
 		{
-			MethodName: "UpdatePlugins",
-			Handler:    _AgentService_UpdatePlugins_Handler,
+			MethodName: "ProvisionServer",
+			Handler:    _AgentService_ProvisionServer_Handler,
+		},
+		{
+			MethodName: "ExecuteServerAction",
+			Handler:    _AgentService_ExecuteServerAction_Handler,
+		},
+		{
+			MethodName: "UpdateServerPlugins",
+			Handler:    _AgentService_UpdateServerPlugins_Handler,
 		},
 		{
 			MethodName: "GetServerStatus",
 			Handler:    _AgentService_GetServerStatus_Handler,
-		},
-		{
-			MethodName: "RegisterNode",
-			Handler:    _AgentService_RegisterNode_Handler,
-		},
-		{
-			MethodName: "Heartbeat",
-			Handler:    _AgentService_Heartbeat_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
