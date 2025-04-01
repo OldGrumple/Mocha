@@ -24,6 +24,12 @@
               >
                 Servers
               </router-link>
+              <router-link
+                to="/minecraft/cache"
+                class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+              >
+                Jar Cache
+              </router-link>
             </div>
           </div>
         </div>
@@ -38,4 +44,12 @@
 
 <script setup>
 // No additional setup needed
-</script> 
+</script>
+
+<style>
+#app {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+</style> 

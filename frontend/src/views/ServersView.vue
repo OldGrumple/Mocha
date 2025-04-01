@@ -44,12 +44,15 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-200 bg-white">
-                <tr v-for="server in servers" :key="server._id">
+                <tr v-for="server in servers" 
+                :key="server._id" 
+                class="cursor-pointer hover:bg-gray-50" 
+                @click="navigateToServer(server)">
                   <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                     {{ server.name }}
                   </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {{ server.nodeId.name }}
+                    {{ server.nodeId?.name || 'No Node' }}
                   </td>
                   <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                     {{ server.minecraftVersion }}
@@ -62,26 +65,26 @@
                       <button
                         v-if="server.status === 'stopped'"
                         class="text-green-600 hover:text-green-900"
-                        @click="startServer(server)"
+                        @click.stop="startServer(server)"
                       >
                         Start
                       </button>
                       <button
                         v-if="server.status === 'running'"
                         class="text-red-600 hover:text-red-900"
-                        @click="stopServer(server)"
+                        @click.stop="stopServer(server)"
                       >
                         Stop
                       </button>
                       <button
                         class="text-indigo-600 hover:text-indigo-900"
-                        @click="showServerDetails(server)"
+                        @click.stop="navigateToConfig(server)"
                       >
-                        Details
+                        Configure
                       </button>
                       <button
                         class="text-red-600 hover:text-red-900"
-                        @click="confirmDeleteServer(server)"
+                        @click.stop="confirmDeleteServer(server)"
                       >
                         Delete
                       </button>
@@ -218,8 +221,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 
+const router = useRouter()
 const servers = ref([])
 const nodes = ref([])
 const showAddServerModal = ref(false)
@@ -280,10 +285,6 @@ const stopServer = async (server) => {
   }
 }
 
-const showServerDetails = (server) => {
-  selectedServer.value = server
-}
-
 const getStatusClass = (status) => {
   const classes = {
     running: 'text-green-600',
@@ -309,6 +310,14 @@ const deleteServer = async () => {
     console.error('Error deleting server:', error)
     alert(error.response?.data?.error || 'Failed to delete server. Please try again.')
   }
+}
+
+const navigateToServer = (server) => {
+  router.push(`/servers/${server._id}`)
+}
+
+const navigateToConfig = (server) => {
+  router.push(`/servers/${server._id}/config`)
 }
 
 onMounted(() => {

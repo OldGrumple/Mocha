@@ -10,7 +10,9 @@
   "dependencies": {
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.26.6",
+    "@kurkle/color": "^0.3.4",
     "axios": "^1.6.2",
+    "chart.js": "^4.4.8",
     "core-js": "^3.8.3",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3"
