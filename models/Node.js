@@ -32,6 +32,11 @@ const nodeSchema = new mongoose.Schema({
             max: 100,
             default: 0
         },
+        cpuCores: {
+            type: Number,
+            min: 1,
+            default: 1
+        },
         memoryUsed: {
             type: Number,
             min: 0,
@@ -115,23 +120,6 @@ nodeSchema.methods.hasEnoughResources = function(requiredMemory, requiredCpu) {
         return false;
     }
 
-    // Check CPU usage (leave 20% headroom)
-    if (this.metrics.cpuUsage > 80) {
-        return false;
-    }
-
-    // Check memory availability (leave 20% headroom)
-    const availableMemory = this.metrics.memoryTotal - this.metrics.memoryUsed;
-    if (availableMemory < requiredMemory * 1.2) {
-        return false;
-    }
-
-    // Check if CPU cores are sufficient
-    const requiredCores = Math.ceil(requiredCpu / 100);
-    if (this.metrics.cpuCores < requiredCores) {
-        return false;
-    }
-
     return true;
 };
 
@@ -142,6 +130,30 @@ nodeSchema.methods.getResourceUtilization = function() {
         memory: (this.metrics.memoryUsed / this.metrics.memoryTotal) * 100,
         disk: this.metrics.diskUsage
     };
+};
+
+// Static method to update offline nodes
+nodeSchema.statics.updateOfflineNodes = async function() {
+    const offlineThreshold = new Date(Date.now() - 60000); // 60 seconds
+    const result = await this.updateMany(
+        { 
+            lastSeen: { $lt: offlineThreshold },
+            status: { $ne: 'offline' }
+        },
+        { 
+            status: 'offline'
+        }
+    );
+    
+    if (result.modifiedCount > 0) {
+        console.log(`Marked ${result.modifiedCount} nodes as offline`);
+    }
+};
+
+// Instance method to check if node is offline
+nodeSchema.methods.isOffline = function() {
+    const offlineThreshold = new Date(Date.now() - 60000); // 60 seconds
+    return this.lastSeen < offlineThreshold;
 };
 
 const Node = mongoose.model('Node', nodeSchema);

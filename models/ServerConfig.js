@@ -13,6 +13,12 @@ const serverConfigSchema = new mongoose.Schema({
     required: true,
     default: 'Minecraft Server'
   },
+  serverType: {
+    type: String,
+    enum: ['vanilla', 'paper', 'spigot', 'forge', 'fabric'],
+    default: 'vanilla',
+    required: true
+  },
   maxPlayers: {
     type: Number,
     required: true,

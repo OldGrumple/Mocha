@@ -9,6 +9,9 @@ const minecraftService = require('../services/minecraftService');
 // Node Routes
 router.get('/nodes', async (req, res) => {
     try {
+        // Update status of nodes that haven't sent heartbeats
+        await Node.updateOfflineNodes();
+        
         const nodes = await Node.find().select('-certificate.privateKey');
         res.json({nodes});
     } catch (error) {
@@ -18,6 +21,9 @@ router.get('/nodes', async (req, res) => {
 
 router.get('/nodes/:id', async (req, res) => {
     try {
+        // Update status of nodes that haven't sent heartbeats
+        await Node.updateOfflineNodes();
+        
         const node = await Node.findById(req.params.id).select('-certificate.privateKey');
         if (!node) {
             return res.status(404).json({ error: 'Node not found' });
@@ -114,69 +120,104 @@ router.get('/servers', async (req, res) => {
 
 router.post('/servers', async (req, res) => {
     try {
-        // Create server in database
-        const newServer = new Server(req.body);
-        await newServer.save();
+        console.log('Received server creation request:', req.body);
 
-        // Get all available nodes
+        // Get all available nodes first
         const nodes = await Node.find({ status: 'online' });
+        console.log('Found online nodes:', nodes.length);
+        
         if (nodes.length === 0) {
             throw new Error('No available nodes found');
         }
 
-        // Find a node with sufficient resources
-        let selectedNode = null;
-        for (const node of nodes) {
-            // Default resource requirements (can be customized based on server type)
-            const requiredMemory = 2048 * 1024 * 1024; // 2GB
-            const requiredCpu = 50; // 50% CPU
+        // Select the first online node
+        const selectedNode = nodes[0];
+        console.log('Selected node for provisioning:', selectedNode._id);
 
-            if (node.hasEnoughResources(requiredMemory, requiredCpu)) {
-                selectedNode = node;
-                break;
-            }
-        }
-
-        if (!selectedNode) {
-            throw new Error('No nodes have sufficient resources');
-        }
-
-        // Update server with selected node
-        newServer.nodeId = selectedNode._id;
+        // Create server in database first
+        const newServer = new Server({
+            _id: req.body._id,
+            name: req.body.name,
+            minecraftVersion: req.body.minecraftVersion,
+            serverType: req.body.serverType,
+            nodeId: selectedNode._id
+        });
         await newServer.save();
+        console.log('Created server in database:', newServer._id);
 
-        // Get or create server configuration
-        let config = await ServerConfig.findOne({ serverId: newServer._id });
-        if (!config) {
-            config = new ServerConfig({
-                serverId: newServer._id,
-                serverName: newServer.name
-            });
-            await config.save();
-        }
+        const config = new ServerConfig({
+            serverId: newServer._id,
+            serverName: req.body.name,
+            serverType: req.body.serverType,
+            maxPlayers: req.body.maxPlayers || 20,
+            difficulty: req.body.difficulty || 'normal',
+            gameMode: req.body.gameMode || 'survival',
+            viewDistance: req.body.viewDistance || 10,
+            spawnProtection: req.body.spawnProtection || 16,
+            seed: req.body.seed || '',
+            worldType: req.body.worldType || 'default',
+            generateStructures: req.body.generateStructures !== false,
+            memory: req.body.memory || 2,
+            port: req.body.port || 25565
+          });
+          await config.save();
+          console.log('Created server configuration:', config);
+          
+          // ✅ NOW it's safe to use `config`
+          const serverConfig = {
+            name: newServer.name,
+            minecraftVersion: newServer.minecraftVersion,
+            nodeId: selectedNode._id,
+            serverId: newServer._id.toString(),
+            apiKey: selectedNode.apiKey,
+            plugins: req.body.plugins || [],
+            serverType: config.serverType,
+            memory: config.memory,
+            difficulty: config.difficulty,
+            gameMode: config.gameMode,
+            maxPlayers: config.maxPlayers,
+            port: config.port,
+            viewDistance: config.viewDistance,
+            spawnProtection: config.spawnProtection,
+            seed: config.seed,
+            worldType: config.worldType,
+            generateStructures: config.generateStructures
+          };
+
+        await config.save();
+        console.log('Created server configuration:', config);
+
+        // Update server with config reference
+        newServer.config = config._id;
+        await newServer.save();
 
         // For development, use localhost instead of the node's address
         if (process.env.NODE_ENV === 'development') {
             selectedNode.address = 'localhost:50051';
         }
 
+        console.log('Creating gRPC client for node:', selectedNode.address);
         const grpcClient = new GRPCAgentService(selectedNode);
 
-        // Provision server using gRPC
-        const serverConfig = {
-            name: newServer.name,
-            minecraftVersion: newServer.minecraftVersion,
-            config: config.toObject()
-        };
+
+        console.log('Sending provisioning request to agent:', serverConfig);
 
         const provisionResponse = await grpcClient.provisionServer(serverConfig);
+        console.log('Received provisioning response:', provisionResponse);
         
         // Update server with instance ID from gRPC response
+        if (!provisionResponse.instanceId) {
+            throw new Error('No instanceId received from gRPC server');
+        }
+        
         newServer.instanceId = provisionResponse.instanceId;
         await newServer.save();
+        console.log('Updated server with instance ID:', newServer.instanceId);
 
+        // Return the updated server with instanceId
         res.json({newServer});
     } catch (error) {
+        console.error('Error in server creation:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -241,16 +282,30 @@ router.post('/servers/:id/stop', async (req, res) => {
     }
 });
 
+router.get('/servers/:id', async (req, res) => {
+    try {
+      const server = await Server.findById(req.params.id).lean();
+      if (!server) {
+        return res.status(404).json({ error: 'Server not found' });
+      }
+  
+      res.json({ server });
+    } catch (err) {
+      console.error('Error fetching server:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
 router.delete('/servers/:id', async (req, res) => {
     try {
-        // First get the server without populating nodeId to get the raw nodeId
-        const server = await Server.findById(req.params.id);
+        // Get the server with populated nodeId
+        const server = await Server.findById(req.params.id).populate('nodeId');
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
         }
 
         // Get the full node document with certificate information
-        const node = await Node.findById(server.nodeId);
+        const node = await Node.findById(server.nodeId._id);
         if (!node) {
             return res.status(404).json({ error: 'Associated node not found' });
         }
@@ -260,12 +315,24 @@ router.delete('/servers/:id', async (req, res) => {
             node.address = 'localhost:50051';
         }
 
+        console.log('Deleting server:', {
+            serverId: server._id,
+            instanceId: server.instanceId,
+            nodeId: node._id,
+            server: server.toObject()
+        });
+
+        // If server has no instanceId, try to use serverId as instanceId
+        const instanceId = server.instanceId || server._id.toString();
+        console.log('Using instanceId for deletion:', instanceId);
+
         const grpcClient = new GRPCAgentService(node);
-        await grpcClient.deleteServer(server.instanceId);
+        await grpcClient.deleteServer(instanceId);
         await server.deleteOne();
 
         res.json({ message: 'Server deleted successfully' });
     } catch (error) {
+        console.error('Error deleting server:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -412,42 +479,37 @@ router.post('/minecraft/cache/clear', async (req, res) => {
 // Node Status Routes
 router.put('/nodes/:id/status', async (req, res) => {
     try {
-        console.log('Received node status update request:', {
-            nodeId: req.params.id,
-            body: req.body
-        });
-
         let node = await Node.findById(req.params.id);
         
         // If node doesn't exist, create it
         if (!node) {
-            console.log('Node not found, creating new node:', req.params.id);
             node = new Node({
                 _id: req.params.id,
                 name: req.params.id,
                 address: req.body.address || 'localhost:50051',
                 status: 'offline'
             });
-            await node.save();
+
+            // If API key is provided, use it; otherwise generate a new one
+            if (req.body.apiKey) {
+                node.apiKey = req.body.apiKey;
+            } else {
+                node.generateNewApiKey();
+            }
         }
 
         const { lastSeen, metrics } = req.body;
         
         // Validate metrics
         if (!metrics || typeof metrics !== 'object') {
-            console.error('Invalid metrics data received:', metrics);
             return res.status(400).json({ error: 'Invalid metrics data' });
         }
 
-        console.log('Updating node metrics:', {
-            nodeId: node._id,
-            metrics: metrics
-        });
-
-        // Update node status
-        node.lastSeen = new Date(lastSeen);
+        // Update node status and metrics
+        node.lastSeen = new Date(lastSeen * 1000);
         node.metrics = {
             cpuUsage: Number(metrics.cpuUsage),
+            cpuCores: Number(metrics.cpuCores || 1),
             memoryUsed: Number(metrics.memoryUsed),
             memoryTotal: Number(metrics.memoryTotal),
             diskUsage: Number(metrics.diskUsage),
@@ -457,15 +519,13 @@ router.put('/nodes/:id/status', async (req, res) => {
         node.status = 'online';
         
         await node.save();
-        console.log('Node status updated successfully:', node._id);
+
+        // Update status of nodes that haven't sent heartbeats
+        await Node.updateOfflineNodes();
+
         res.json({ message: 'Node status updated successfully' });
     } catch (error) {
-        console.error('Error updating node status:', {
-            error: error.message,
-            stack: error.stack,
-            nodeId: req.params.id,
-            body: req.body
-        });
+        console.error('Error updating node status:', error);
         res.status(500).json({ error: 'Failed to update node status', details: error.message });
     }
 });
@@ -478,11 +538,19 @@ router.put('/servers/:id/status', async (req, res) => {
             return res.status(404).json({ error: 'Server not found' });
         }
 
-        const { status, playerCount } = req.body;
+        const { status, playerCount, message, progress } = req.body;
         
         // Update server status
         server.status = status;
-        server.playerCount = playerCount;
+        if (typeof playerCount !== 'undefined') {
+            server.playerCount = playerCount;
+        }
+        if (message) {
+            server.statusMessage = message;
+        }
+        if (typeof progress !== 'undefined') {
+            server.progress = progress;
+        }
         
         await server.save();
         res.json({ message: 'Server status updated successfully' });

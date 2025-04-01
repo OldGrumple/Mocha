@@ -20,10 +20,36 @@ const serverSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    serverType: {
+        type: String,
+        enum: ['vanilla', 'paper', 'spigot', 'forge', 'fabric'],
+        default: 'vanilla',
+        required: true
+    },
     status: {
         type: String,
-        enum: ['provisioning', 'running', 'stopped', 'error'],
+        enum: [
+            'provisioning',
+            'provisioning_setup',
+            'provisioning_download',
+            'provisioning_config',
+            'provisioned',
+            'running',
+            'stopped',
+            'failed',
+            'deleting'
+        ],
         default: 'provisioning'
+    },
+    statusMessage: {
+        type: String,
+        default: 'Initializing server...'
+    },
+    progress: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100
     },
     playerCount: {
         type: Number,
