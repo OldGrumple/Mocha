@@ -99,11 +99,21 @@ class MinecraftService {
 
   async downloadServer(type, version) {
     try {
+      type = type.toLowerCase()
       // Check if already cached
       const cached = await MinecraftCache.findOne({ type, version })
       if (cached) {
-        await cached.updateLastAccessed()
-        return cached.path
+        try {
+          // Verify the file exists
+          await fs.access(cached.path)
+          console.log('Using cached server file:', cached.path)
+          await cached.updateLastAccessed()
+          return cached.path
+        } catch (error) {
+          // File doesn't exist, remove from cache and continue with download
+          console.log('Cached file not found, removing from cache:', cached.path)
+          await MinecraftCache.deleteOne({ _id: cached._id })
+        }
       }
 
       // Download based on type
@@ -126,6 +136,7 @@ class MinecraftService {
           throw new Error('Unsupported server type')
       }
 
+      console.log('Downloading server from:', downloadUrl)
       const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' })
       const filePath = path.join(CACHE_DIR, fileName)
       await fs.writeFile(filePath, response.data)
