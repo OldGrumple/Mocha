@@ -228,6 +228,83 @@ class MinecraftService {
             return false;
         }
     }
+
+    async getAvailableServerTypes() {
+        return Object.entries(config.serverTypes).map(([key, value]) => ({
+            id: value,
+            name: key.charAt(0) + key.slice(1).toLowerCase(),
+            description: this.getServerTypeDescription(value)
+        }));
+    }
+
+    getServerTypeDescription(type) {
+        const descriptions = {
+            vanilla: 'Official Minecraft server from Mojang',
+            paper: 'High-performance fork of Spigot',
+            forge: 'Modded server with Forge support',
+            fabric: 'Lightweight modding platform'
+        };
+        return descriptions[type] || 'Unknown server type';
+    }
+
+    async getAvailableVersionsForType(type) {
+        switch (type) {
+            case 'vanilla':
+                return await this.getVanillaVersions();
+            case 'paper':
+                return await this.getPaperVersions();
+            case 'forge':
+                return await this.getForgeVersions();
+            case 'fabric':
+                return await this.getFabricVersions();
+            default:
+                throw new Error(`Unsupported server type: ${type}`);
+        }
+    }
+
+    async getVanillaVersions() {
+        try {
+            const manifest = await this.getVersionManifest();
+            return manifest.versions
+                .filter(v => v.type === 'release')
+                .map(v => ({
+                    id: v.id,
+                    type: v.type,
+                    releaseDate: v.releaseTime,
+                    url: v.url
+                }));
+        } catch (error) {
+            console.error('Error fetching vanilla versions:', error);
+            throw error;
+        }
+    }
+
+    async getPaperVersions() {
+        try {
+            const response = await axios.get(config.apiEndpoints.paper.project);
+            return response.data.versions
+                .filter(v => v.type === 'release')
+                .map(v => ({
+                    id: v.id,
+                    type: v.type,
+                    releaseDate: v.releaseTime,
+                    builds: v.builds
+                }));
+        } catch (error) {
+            console.error('Error fetching Paper versions:', error);
+            throw error;
+        }
+    }
+
+    async getForgeVersions() {
+        // TODO: Implement Forge version fetching
+        throw new Error('Forge version fetching not implemented yet');
+    }
+
+    async getFabricVersions() {
+        // TODO: Implement Fabric version fetching
+        throw new Error('Fabric version fetching not implemented yet');
+    }
 }
 
 module.exports = new MinecraftService(); 
