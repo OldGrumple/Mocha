@@ -20,6 +20,8 @@ mocha/
 │   ├── config/            # Environment and configuration files
 │   │   └── env/          # Environment-specific configurations
 │   └── frontend/          # Frontend Vue.js application
+├── config/                # Project-wide configuration
+│   └── nginx/            # Nginx configuration files
 ├── ecosystem.config.js     # PM2 process management configuration
 ```
 
@@ -30,7 +32,7 @@ mocha/
 - Protocol Buffers compiler (protoc)
 - gRPC tools
 - PM2 (for production deployment)
-- serve (for serving frontend in production)
+- Nginx (for serving frontend)
 
 ## Setup
 
@@ -52,17 +54,12 @@ cd ../frontend
 npm install
 ```
 
-4. Install serve globally (for frontend production):
-```bash
-npm install -g serve
-```
-
-5. Set up environment variables:
+4. Set up environment variables:
    - Copy `config/env/.env.example` to `config/env/.env.development` for development
    - Copy `config/env/.env.example` to `config/env/.env.production` for production
    - Update the environment variables as needed
 
-6. Generate gRPC code:
+5. Generate gRPC code:
 ```bash
 cd src
 npm run generate:grpc
@@ -87,14 +84,10 @@ cd ../frontend
 npm run serve
 ```
 
-## Production Deployment with PM2
+## Production Deployment
 
-1. Install PM2 globally:
-```bash
-npm install -g pm2
-```
+### 1. Build the Application
 
-2. Build the project:
 ```bash
 # Build frontend
 cd frontend
@@ -105,49 +98,55 @@ cd ../src
 npm run build:prod
 ```
 
-3. Start all services with PM2:
-```bash
-# Start in development mode
-pm2 start ecosystem.config.js
+### 2. Configure Nginx
 
+1. Install Nginx:
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install nginx
+
+# CentOS/RHEL
+sudo yum install nginx
+```
+
+2. Copy the Nginx configuration:
+```bash
+sudo cp config/nginx/mocha.conf /etc/nginx/conf.d/
+```
+
+3. Update the configuration:
+   - Replace `/path/to/your/project/frontend/dist` with your actual frontend build path
+   - Update `server_name` with your domain
+   - Adjust ports if needed
+
+4. Test and reload Nginx:
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 3. Start Backend Services with PM2
+
+1. Install PM2 globally:
+```bash
+npm install -g pm2
+```
+
+2. Start the services:
+```bash
 # Start in production mode
 pm2 start ecosystem.config.js --env production
 ```
 
-4. Useful PM2 commands:
+3. Save PM2 process list:
 ```bash
-# View logs
-pm2 logs
-
-# Monitor processes
-pm2 monit
-
-# List all processes
-pm2 list
-
-# Stop all processes
-pm2 stop all
-
-# Restart all processes
-pm2 restart all
-
-# Delete all processes
-pm2 delete all
-
-# Save current process list
 pm2 save
-
-# Set PM2 to start on system boot
-pm2 startup
 ```
 
-5. Environment-specific deployment:
+4. Set up PM2 to start on boot:
 ```bash
-# Development
-pm2 start ecosystem.config.js --env development
-
-# Production
-pm2 start ecosystem.config.js --env production
+pm2 startup
 ```
 
 ## Environment Variables
@@ -160,7 +159,6 @@ Key environment variables:
 - `GRPC_PORT`: gRPC server port (default: 50051)
 - `MONGODB_URI`: MongoDB connection string
 - `JWT_SECRET`: Secret key for JWT token generation
-- `FRONTEND_PORT`: Frontend server port (default: 8080)
 
 ## Features
 
