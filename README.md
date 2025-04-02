@@ -20,6 +20,7 @@ mocha/
 │   ├── config/            # Environment and configuration files
 │   │   └── env/          # Environment-specific configurations
 │   └── frontend/          # Frontend Vue.js application
+├── ecosystem.config.js     # PM2 process management configuration
 ```
 
 ## Prerequisites
@@ -28,6 +29,7 @@ mocha/
 - MongoDB (v4.4 or higher)
 - Protocol Buffers compiler (protoc)
 - gRPC tools
+- PM2 (for production deployment)
 
 ## Setup
 
@@ -79,21 +81,62 @@ cd ../frontend
 npm run serve
 ```
 
-## Production Build
+## Production Deployment with PM2
 
-1. Build the entire project:
+1. Install PM2 globally:
+```bash
+npm install -g pm2
+```
+
+2. Build the project:
 ```bash
 cd backend/src
 npm run build:prod
 ```
 
-2. Start the production servers:
+3. Start all services with PM2:
 ```bash
-# Start API server
-npm start
+# Start in development mode
+pm2 start ecosystem.config.js
 
-# Start gRPC server
-npm run grpc
+# Start in production mode
+pm2 start ecosystem.config.js --env production
+```
+
+4. Useful PM2 commands:
+```bash
+# View logs
+pm2 logs
+
+# Monitor processes
+pm2 monit
+
+# List all processes
+pm2 list
+
+# Stop all processes
+pm2 stop all
+
+# Restart all processes
+pm2 restart all
+
+# Delete all processes
+pm2 delete all
+
+# Save current process list
+pm2 save
+
+# Set PM2 to start on system boot
+pm2 startup
+```
+
+5. Environment-specific deployment:
+```bash
+# Development
+pm2 start ecosystem.config.js --env development
+
+# Production
+pm2 start ecosystem.config.js --env production
 ```
 
 ## Environment Variables
