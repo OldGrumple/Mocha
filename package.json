@@ -7,7 +7,11 @@
     "dev": "NODE_ENV=development nodemon app.js",
     "grpc": "node services/grpcServer.js",
     "dev:grpc": "nodemon services/grpcServer.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate:grpc": "grpc_tools_node_protoc --js_out=import_style=commonjs,binary:./generated --grpc_out=grpc_js:./generated ./proto/agent.proto",
+    "start:prod": "NODE_ENV=production node app.js",
+    "grpc:prod": "NODE_ENV=production node services/grpcServer.js",
+    "build:prod": "npm run generate:grpc && cd frontend && npm install && npm run build"
   },
   "keywords": [],
   "author": "",
@@ -22,7 +26,8 @@
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
-    "mongoose": "^8.13.1"
+    "mongoose": "^8.13.1",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "grpc-tools": "^1.13.0",

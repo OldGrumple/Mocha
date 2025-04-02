@@ -1,42 +1,35 @@
-// backend/services/grpcAgentService.js
+// backend/services/gRPCAgentService.js
 const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
-const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const packageDefinition = protoLoader.loadSync('./proto/agent.proto', {});
+// Load the agent.proto
+const packageDefinition = protoLoader.loadSync(path.join(__dirname, '../proto/agent.proto'), {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
+});
 const agentProto = grpc.loadPackageDefinition(packageDefinition).agent;
 
 class GRPCAgentService {
   constructor(node) {
-    if (!node.certificate) {
-      throw new Error('Node must have valid certificates');
-    }
-
     // Map string server types to proto enum values
     this.serverTypeMap = {
-      'vanilla': 0,  // VANILLA
-      'forge': 1,    // FORGE
-      'fabric': 2,   // FABRIC
-      'paper': 3,    // PAPER
-      'spigot': 3    // PAPER (since spigot is paper-based)
+      vanilla: 0,
+      forge: 1,
+      fabric: 2,
+      paper: 3,
+      spigot: 3 // treat spigot as paper
     };
 
-    let credentials;
-    if (process.env.NODE_ENV === 'development') {
-      // Use insecure credentials for development
-      credentials = grpc.credentials.createInsecure();
-    } else {
-      // Use SSL credentials for production
-      credentials = grpc.credentials.createSsl(
-        Buffer.from(node.certificate.publicKey),
-        Buffer.from(node.certificate.privateKey)
-      );
-    }
-
-    this.client = new agentProto.AgentService(node.address, credentials);
     this.node = node;
+    this.client = new agentProto.AgentService(
+      process.env.GRPC_SERVER || 'localhost:50051',
+      grpc.credentials.createInsecure()
+    );
   }
 
   metadata() {
@@ -48,10 +41,16 @@ class GRPCAgentService {
   registerNode() {
     return new Promise((resolve, reject) => {
       const request = {
-        nodeId: this.node._id,
-        apiKey: this.node.apiKey,
-        address: this.node.address
+        node_id: this.node._id,
+        api_key: this.node.apiKey,
+        address: this.node.address,
+        hostname: this.node.hostname,
+        os: this.node.os,
+        memory_bytes: this.node.memoryBytes,
+        cpu_cores: this.node.cpuCores,
+        ip_address: this.node.ipAddress
       };
+
       this.client.RegisterNode(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
@@ -61,42 +60,35 @@ class GRPCAgentService {
 
   provisionServer(serverConfig) {
     return new Promise((resolve, reject) => {
-      if (!serverConfig.serverType) {
-        reject(new Error('serverType is required'));
-        return;
-      }
-
-      // Convert string server type to enum value
-      const serverTypeEnum = this.serverTypeMap[serverConfig.serverType.toLowerCase()];
+      const serverTypeEnum = this.serverTypeMap[serverConfig.config.server_type.toLowerCase()];
       if (typeof serverTypeEnum === 'undefined') {
-        reject(new Error(`Invalid server type: ${serverConfig.serverType}`));
-        return;
+        return reject(new Error(`Invalid server type: ${serverConfig.config.server_type}`));
       }
 
       const request = {
-        name: serverConfig.name,
-        minecraftVersion: serverConfig.minecraftVersion,
-        nodeId: serverConfig.nodeId,
-        serverId: serverConfig.serverId,
-        apiKey: serverConfig.apiKey,
+        name: serverConfig.config.server_name,
+        minecraftVersion: serverConfig.minecraft_version,
+        nodeId: this.node._id,
+        serverId: serverConfig.server_id,
+        apiKey: this.node.apiKey,
         plugins: serverConfig.plugins || [],
         config: {
           serverType: serverTypeEnum,
-          maxPlayers: serverConfig.maxPlayers || 20,
-          difficulty: serverConfig.difficulty || 'normal',
-          gameMode: serverConfig.gameMode || 'survival',
-          viewDistance: serverConfig.viewDistance || 10,
-          spawnProtection: serverConfig.spawnProtection || 16,
-          seed: serverConfig.seed || '',
-          worldType: serverConfig.worldType || 'default',
-          generateStructures: serverConfig.generateStructures !== false,
-          memory: serverConfig.memory || 2,
-          port: serverConfig.port || 25565
+          memory: serverConfig.config.memory,
+          difficulty: serverConfig.config.difficulty,
+          gameMode: serverConfig.config.game_mode,
+          maxPlayers: serverConfig.config.max_players,
+          port: serverConfig.config.port,
+          viewDistance: serverConfig.config.view_distance,
+          spawnProtection: serverConfig.config.spawn_protection,
+          seed: serverConfig.config.seed,
+          worldType: serverConfig.config.world_type,
+          generateStructures: serverConfig.config.generate_structures
         }
       };
 
-      console.log("Final provisioning request:", JSON.stringify(request, null, 2));
-      console.log('Sending gRPC provisioning request:', request);
+      console.log("Final provisioning request (agent.proto):", JSON.stringify(request, null, 2));
+
       this.client.ProvisionServer(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
@@ -104,45 +96,84 @@ class GRPCAgentService {
     });
   }
 
-  startServer(instanceId) {
+  startServer(serverId) {
     return new Promise((resolve, reject) => {
-      this.client.StartServer({ instanceId }, this.metadata(), (err, response) => {
+      const request = {
+        instanceId: serverId,
+        serverId,
+        nodeId: this.node._id,
+        apiKey: this.node.apiKey,
+        action: 'start'
+      };
+
+      this.client.StartServer(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
       });
     });
   }
 
-  stopServer(instanceId) {
+  stopServer(serverId) {
     return new Promise((resolve, reject) => {
-      this.client.StopServer({ instanceId }, this.metadata(), (err, response) => {
+      const request = {
+        instanceId: serverId,
+        serverId,
+        nodeId: this.node._id,
+        apiKey: this.node.apiKey,
+        action: 'stop'
+      };
+
+      this.client.StopServer(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
       });
     });
   }
 
-  deleteServer(instanceId) {
+  deleteServer(serverId) {
     return new Promise((resolve, reject) => {
-      this.client.DeleteServer({ instanceId }, this.metadata(), (err, response) => {
+      const request = {
+        instanceId: serverId,
+        serverId,
+        nodeId: this.node._id,
+        apiKey: this.node.apiKey,
+        action: 'delete'
+      };
+
+      this.client.DeleteServer(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
       });
     });
   }
 
-  updatePlugins(instanceId, plugins) {
+  updatePlugins(serverId, plugins) {
     return new Promise((resolve, reject) => {
-      this.client.UpdatePlugins({ instanceId, plugins }, this.metadata(), (err, response) => {
+      const request = {
+        instanceId: serverId,
+        serverId,
+        nodeId: this.node._id,
+        apiKey: this.node.apiKey,
+        plugins: plugins || []
+      };
+
+      this.client.UpdatePlugins(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
       });
     });
   }
 
-  getServerStatus(instanceId) {
+  getServerStatus(serverId) {
     return new Promise((resolve, reject) => {
-      this.client.GetServerStatus({ instanceId }, this.metadata(), (err, response) => {
+      const request = {
+        instanceId: serverId,
+        serverId,
+        nodeId: this.node._id,
+        apiKey: this.node.apiKey
+      };
+
+      this.client.GetServerStatus(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
       });
@@ -154,7 +185,7 @@ class GRPCAgentService {
       const request = {
         nodeId: this.node._id,
         timestamp: Math.floor(Date.now() / 1000),
-        servers: [], // TODO: Get actual server statuses
+        servers: [], // You can fill this with actual server states if available
         metrics: {
           cpuUsage: 0,
           cpuCores: 0,
@@ -166,6 +197,7 @@ class GRPCAgentService {
         },
         apiKey: this.node.apiKey
       };
+
       this.client.Heartbeat(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
@@ -183,9 +215,42 @@ class GRPCAgentService {
         memoryTotal: metrics.memoryTotal,
         diskUsage: metrics.diskUsage,
         networkBytesIn: metrics.networkBytesIn,
-        networkBytesOut: metrics.networkBytesOut
+        networkBytesOut: metrics.networkBytesOut,
+        apiKey: this.node.apiKey
       };
+
       this.client.UpdateMetrics(request, this.metadata(), (err, response) => {
+        if (err) reject(err);
+        else resolve(response);
+      });
+    });
+  }
+
+  updateCredentials(apiKey, certificates) {
+    return new Promise((resolve, reject) => {
+      const request = {
+        nodeId: this.node._id,
+        apiKey,
+        certificates: {
+          publicKey: certificates.publicKey,
+          privateKey: certificates.privateKey
+        }
+      };
+
+      this.client.UpdateCredentials(request, this.metadata(), (err, response) => {
+        if (err) reject(err);
+        else resolve(response);
+      });
+    });
+  }
+
+  installJava() {
+    return new Promise((resolve, reject) => {
+      const request = {
+        nodeId: this.node._id
+      };
+
+      this.client.InstallJava(request, this.metadata(), (err, response) => {
         if (err) reject(err);
         else resolve(response);
       });

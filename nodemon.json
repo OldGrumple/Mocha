@@ -1,0 +1,10 @@
+{
+    "watch": ["services", "src"],
+    "ignore": [
+      "servers/*",
+      "nodes/*",
+      "logs/*"
+    ],
+    "ext": "js,json"
+  }
+  

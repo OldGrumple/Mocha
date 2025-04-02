@@ -16,20 +16,20 @@
             {{ formatStatus(server.status) }}
           </span>
           <span class="text-sm font-medium text-gray-700">
-            {{ server.progress }}%
+            {{ server.progress ?? 0 }}%
           </span>
         </div>
         <div class="w-full bg-gray-200 rounded-full h-2.5">
           <div
             class="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
-            :style="{ width: `${server.progress}%` }"
+            :style="{ width: `${server.progress ?? 0}%` }"
           ></div>
         </div>
       </div>
 
       <!-- Status Message -->
       <div class="text-sm text-gray-600">
-        {{ server.statusMessage }}
+        {{ server.status === 'jar_swap_in_progress' ? 'Swapping server jar file...' : (server.statusMessage || 'Working on provisioning the server...') }}
       </div>
 
       <!-- Error Message -->
@@ -45,7 +45,7 @@ import StatusBadge from './StatusBadge.vue';
 
 export default {
   name: 'ServerProvisioningStatus',
-  
+
   components: {
     StatusBadge
   },
@@ -59,19 +59,19 @@ export default {
 
   computed: {
     isProvisioning() {
-      return this.server.status.startsWith('provisioning_') || 
-             this.server.status === 'provisioning';
+      return this.server.status?.startsWith('provisioning') || false;
     }
   },
 
   methods: {
     formatStatus(status) {
+      if (!status) return 'Unknown';
       if (status.startsWith('provisioning_')) {
         const stage = status.split('_')[1];
-        return `${stage.charAt(0).toUpperCase()}${stage.slice(1)}`;
+        return stage.charAt(0).toUpperCase() + stage.slice(1);
       }
       return status.charAt(0).toUpperCase() + status.slice(1);
     }
   }
 };
-</script> 
+</script>

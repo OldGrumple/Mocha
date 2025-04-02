@@ -34,12 +34,20 @@
           <div class="text-sm text-gray-500">Size: {{ formatSize(item.size) }}</div>
           <div class="text-sm text-gray-500">Downloaded: {{ formatDate(item.downloadedAt) }}</div>
         </div>
-        <button
-          @click="removeFromCache(item.type, item.version)"
-          class="px-3 py-1 text-sm text-red-600 hover:text-red-800 focus:outline-none"
-        >
-          Remove
-        </button>
+        <div class="flex gap-2">
+          <button
+            @click="downloadJar(item.type, item.version)"
+            class="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 focus:outline-none"
+          >
+            Download
+          </button>
+          <button
+            @click="removeFromCache(item.type, item.version)"
+            class="px-3 py-1 text-sm text-red-600 hover:text-red-800 focus:outline-none"
+          >
+            Remove
+          </button>
+        </div>
       </div>
     </div>
 
@@ -99,6 +107,28 @@ const clearCache = async () => {
 
 const refreshCache = async () => {
   await fetchCache()
+}
+
+const downloadJar = async (type, version) => {
+  try {
+    const response = await axios.get(`/api/minecraft/download/${type}/${version}`, {
+      responseType: 'blob'
+    })
+
+    // Create a blob from the response data
+    const blob = new Blob([response.data], { type: 'application/java-archive' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type}-${version}.jar`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  } catch (err) {
+    error.value = 'Failed to download server jar'
+    console.error('Error downloading server jar:', err)
+  }
 }
 
 const formatSize = (bytes) => {

@@ -2,15 +2,21 @@ const axios = require('axios')
 const fs = require('fs').promises
 const path = require('path')
 const MinecraftCache = require('../models/MinecraftCache')
+const config = require('./minecraft/config')
+const { createHash } = require('crypto')
+const mongoose = require('mongoose')
 
 const CACHE_DIR = path.join(__dirname, '../cache/minecraft')
-const PAPER_API = 'https://papermc.io/api/v2/projects/paper'
-const VANILLA_API = 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
-const SPIGOT_API = 'https://hub.spigotmc.org/versions'
 
 class MinecraftService {
   constructor() {
     this.ensureCacheDir()
+    this.downloadCache = new Map()
+    this.serverTypes = {
+      PAPER: 'paper',
+      VANILLA: 'vanilla'
+    }
+    this.cacheDir = path.join(__dirname, '../cache')
   }
 
   async ensureCacheDir() {
@@ -22,26 +28,21 @@ class MinecraftService {
   }
 
   async getServerTypes() {
-    return [
-      { id: 'vanilla', name: 'Vanilla' },
-      { id: 'paper', name: 'Paper' },
-      { id: 'spigot', name: 'Spigot' },
-      { id: 'forge', name: 'Forge' },
-      { id: 'fabric', name: 'Fabric' }
-    ]
+    return Object.entries(config.serverTypes).map(([key, value]) => ({
+      id: value,
+      name: key.charAt(0) + key.slice(1).toLowerCase()
+    }))
   }
 
   async getVersions(type) {
     switch (type) {
-      case 'paper':
+      case config.serverTypes.PAPER:
         return this.getPaperVersions()
-      case 'vanilla':
+      case config.serverTypes.VANILLA:
         return this.getVanillaVersions()
-      case 'spigot':
-        return this.getSpigotVersions()
-      case 'forge':
+      case config.serverTypes.FORGE:
         return this.getForgeVersions()
-      case 'fabric':
+      case config.serverTypes.FABRIC:
         return this.getFabricVersions()
       default:
         throw new Error('Invalid server type')
@@ -50,8 +51,24 @@ class MinecraftService {
 
   async getPaperVersions() {
     try {
-      const response = await axios.get(PAPER_API)
-      return response.data.versions.map(version => ({
+      const response = await axios.get('https://api.papermc.io/v2/projects/paper')
+      if (!response.data || !response.data.versions) {
+        throw new Error('Invalid response from Paper API')
+      }
+
+      // Filter out snapshots and sort versions
+      const versions = response.data.versions
+        .filter(version => !version.includes('SNAPSHOT'))
+        .sort((a, b) => {
+          const [majorA, minorA, patchA] = a.split('.').map(Number)
+          const [majorB, minorB, patchB] = b.split('.').map(Number)
+          
+          if (majorA !== majorB) return majorB - majorA
+          if (minorA !== minorB) return minorB - minorA
+          return patchB - patchA
+        })
+
+      return versions.map(version => ({
         id: version,
         name: version
       }))
@@ -63,7 +80,7 @@ class MinecraftService {
 
   async getVanillaVersions() {
     try {
-      const response = await axios.get(VANILLA_API)
+      const response = await axios.get(config.apiEndpoints.vanilla.manifest)
       return response.data.versions.map(version => ({
         id: version.id,
         name: version.id
@@ -74,106 +91,260 @@ class MinecraftService {
     }
   }
 
-  async getSpigotVersions() {
+  async getForgeVersions() {
     try {
-      const response = await axios.get(SPIGOT_API)
-      return response.data.map(version => ({
-        id: version,
-        name: version
+      const response = await axios.get(config.apiEndpoints.forge.installer)
+      return response.data.versions.map(version => ({
+        id: version.id,
+        name: version.id
       }))
     } catch (error) {
-      console.error('Error fetching Spigot versions:', error)
-      throw new Error('Failed to fetch Spigot versions')
+      console.error('Error fetching Forge versions:', error)
+      throw new Error('Failed to fetch Forge versions')
     }
   }
 
-  async getForgeVersions() {
-    // TODO: Implement Forge version fetching
-    return []
-  }
-
   async getFabricVersions() {
-    // TODO: Implement Fabric version fetching
-    return []
+    try {
+      const response = await axios.get(config.apiEndpoints.fabric.versions)
+      return response.data.game.map(version => ({
+        id: version.version,
+        name: version.version
+      }))
+    } catch (error) {
+      console.error('Error fetching Fabric versions:', error)
+      throw new Error('Failed to fetch Fabric versions')
+    }
   }
 
   async downloadServer(type, version) {
     try {
-      type = type.toLowerCase()
-      // Check if already cached
-      const cached = await MinecraftCache.findOne({ type, version })
-      if (cached) {
-        try {
-          // Verify the file exists
-          await fs.access(cached.path)
-          console.log('Using cached server file:', cached.path)
-          await cached.updateLastAccessed()
-          return cached.path
-        } catch (error) {
-          // File doesn't exist, remove from cache and continue with download
-          console.log('Cached file not found, removing from cache:', cached.path)
-          await MinecraftCache.deleteOne({ _id: cached._id })
-        }
+      // Check cache first
+      const cacheKey = `${type}-${version}`;
+      const cachedPath = this.downloadCache.get(cacheKey);
+      if (cachedPath) {
+        console.log(`Using cached server: ${cachedPath}`);
+        return cachedPath;
       }
 
-      // Download based on type
-      let downloadUrl
-      let fileName
-      switch (type) {
-        case 'paper':
-          downloadUrl = await this.getPaperDownloadUrl(version)
-          fileName = `paper-${version}.jar`
-          break
-        case 'vanilla':
-          downloadUrl = await this.getVanillaDownloadUrl(version)
-          fileName = `minecraft-${version}.jar`
-          break
-        case 'spigot':
-          downloadUrl = await this.getSpigotDownloadUrl(version)
-          fileName = `spigot-${version}.jar`
-          break
-        default:
-          throw new Error('Unsupported server type')
+      // Check database cache
+      const cachedEntry = await MinecraftCache.findOne({ type, version });
+      if (cachedEntry) {
+        console.log(`Found cached server in database: ${cachedEntry.path}`);
+        this.downloadCache.set(cacheKey, cachedEntry.path);
+        await cachedEntry.updateLastAccessed();
+        return cachedEntry.path;
       }
 
-      console.log('Downloading server from:', downloadUrl)
-      const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' })
-      const filePath = path.join(CACHE_DIR, fileName)
-      await fs.writeFile(filePath, response.data)
+      // Create cache directory if it doesn't exist
+      await fs.mkdir(this.cacheDir, { recursive: true });
 
-      // Create cache entry
-      const stats = await fs.stat(filePath)
+      // Generate unique filename
+      const timestamp = Date.now();
+      const filename = `${type}-${version}-${timestamp}.jar`;
+      const filePath = path.join(this.cacheDir, filename);
+
+      // Get download URL based on server type
+      let downloadUrl;
+      if (type.toLowerCase() === 'paper') {
+        downloadUrl = await this.getPaperDownloadUrl(version);
+      } else if (type.toLowerCase() === 'vanilla') {
+        downloadUrl = await this.getVanillaDownloadUrl(version);
+      } else {
+        throw new Error(`Unsupported server type: ${type}`);
+      }
+
+      console.log(`Downloading server from: ${downloadUrl}`);
+      await this.downloadFile(downloadUrl, filePath);
+
+      // Validate the downloaded file
+      await this.validateServerJar(filePath, type, version);
+
+      // Get file size
+      const stats = await fs.stat(filePath);
+      const fileSize = stats.size;
+
+      // Store in memory cache
+      this.downloadCache.set(cacheKey, filePath);
+
+      // Save to database cache
       await MinecraftCache.create({
         type,
         version,
-        size: stats.size,
-        path: filePath
-      })
+        size: fileSize,
+        path: filePath,
+        downloadedAt: new Date(),
+        lastAccessed: new Date(),
+        downloadCount: 1
+      });
 
-      return filePath
+      return filePath;
     } catch (error) {
-      console.error('Error downloading server:', error)
-      throw new Error('Failed to download server')
+      console.error('Error downloading server:', error);
+      throw error;
     }
   }
 
   async getPaperDownloadUrl(version) {
-    const response = await axios.get(`${PAPER_API}/versions/${version}`)
-    const build = response.data.builds[response.data.builds.length - 1]
-    return `${PAPER_API}/versions/${version}/builds/${build}/downloads/paper-${version}-${build}.jar`
+    try {
+      // Get latest build number for the version
+      const versionResponse = await axios.get(`https://api.papermc.io/v2/projects/paper/versions/${version}`)
+      if (!versionResponse.data || !versionResponse.data.builds || versionResponse.data.builds.length === 0) {
+        throw new Error(`No builds found for version ${version}`)
+      }
+
+      // Get the latest build
+      const latestBuild = versionResponse.data.builds[versionResponse.data.builds.length - 1]
+
+      // Get build details
+      const buildResponse = await axios.get(
+        `https://api.papermc.io/v2/projects/paper/versions/${version}/builds/${latestBuild}`
+      )
+
+      if (!buildResponse.data || !buildResponse.data.downloads || !buildResponse.data.downloads.application) {
+        throw new Error(`Invalid build data for version ${version} build ${latestBuild}`)
+      }
+
+      // Construct download URL
+      const downloadUrl = `https://api.papermc.io/v2/projects/paper/versions/${version}/builds/${latestBuild}/downloads/${buildResponse.data.downloads.application.name}`
+      console.log(`Generated Paper download URL: ${downloadUrl}`)
+      return downloadUrl
+    } catch (error) {
+      console.error('Error getting Paper download URL:', error)
+      throw error
+    }
   }
 
   async getVanillaDownloadUrl(version) {
-    const response = await axios.get(VANILLA_API)
-    const versionInfo = response.data.versions.find(v => v.id === version)
-    if (!versionInfo) throw new Error('Version not found')
-    
-    const versionData = await axios.get(versionInfo.url)
-    return versionData.data.downloads.server.url
+    try {
+      // Get version manifest
+      const manifestResponse = await axios.get(config.apiEndpoints.vanilla.manifest)
+      const versionInfo = manifestResponse.data.versions.find(v => v.id === version)
+
+      if (!versionInfo) {
+        throw new Error(`Version ${version} not found`)
+      }
+
+      // Get version details
+      const versionResponse = await axios.get(versionInfo.url)
+      return versionResponse.data.downloads.server.url
+    } catch (error) {
+      console.error('Error getting Vanilla download URL:', error)
+      throw error
+    }
   }
 
-  async getSpigotDownloadUrl(version) {
-    return `${SPIGOT_API}/${version}/latest`
+  async getForgeDownloadUrl(version) {
+    // TODO: Implement Forge download URL generation
+    throw new Error('Forge downloads not yet implemented')
+  }
+
+  async getFabricDownloadUrl(version) {
+    // TODO: Implement Fabric download URL generation
+    throw new Error('Fabric downloads not yet implemented')
+  }
+
+  async downloadFile(url, filepath) {
+    try {
+      const response = await axios({
+        method: 'GET',
+        url: url,
+        responseType: 'stream'
+      })
+
+      const writer = await fs.open(filepath, 'w')
+      const stream = response.data
+      const hash = createHash('sha256')
+
+      return new Promise((resolve, reject) => {
+        stream.on('data', chunk => {
+          hash.update(chunk)
+          writer.write(chunk)
+        })
+        stream.on('end', () => {
+          writer.close()
+          resolve(hash.digest('hex'))
+        })
+        stream.on('error', err => {
+          writer.close()
+          reject(err)
+        })
+      })
+    } catch (error) {
+      console.error('Error downloading file:', error)
+      throw error
+    }
+  }
+
+  async validateServerJar(filepath, type, version) {
+    try {
+      // Read file buffer
+      const buffer = await fs.readFile(filepath)
+      
+      // Calculate SHA-256 hash
+      const hash = createHash('sha256')
+      hash.update(buffer)
+      const fileHash = hash.digest('hex')
+
+      // Verify based on server type
+      if (type.toLowerCase() === 'vanilla') {
+        // Get version manifest
+        const manifestResponse = await axios.get(config.apiEndpoints.vanilla.manifest)
+        const versionInfo = manifestResponse.data.versions.find(v => v.id === version)
+        
+        if (!versionInfo) {
+          throw new Error(`Version ${version} not found in manifest`)
+        }
+
+        // Get version details
+        const versionResponse = await axios.get(versionInfo.url)
+        const expectedSha1 = versionResponse.data.downloads.server.sha1
+
+        // Calculate SHA-1 hash
+        const sha1Hash = createHash('sha1')
+        sha1Hash.update(buffer)
+        const actualSha1 = sha1Hash.digest('hex')
+
+        if (actualSha1.toLowerCase() !== expectedSha1.toLowerCase()) {
+          console.error(`SHA-1 hash mismatch for vanilla server ${version}`)
+          console.error(`Expected: ${expectedSha1}`)
+          console.error(`Got: ${actualSha1}`)
+          return false
+        }
+      } else if (type.toLowerCase() === 'paper') {
+        // For Paper, we need to verify the build hash
+        const versionResponse = await axios.get(`https://api.papermc.io/v2/projects/paper/versions/${version}`)
+        if (!versionResponse.data || !versionResponse.data.builds || versionResponse.data.builds.length === 0) {
+          throw new Error(`No builds found for Paper version ${version}`)
+        }
+
+        // Get the latest build
+        const latestBuild = versionResponse.data.builds[versionResponse.data.builds.length - 1]
+        
+        // Get build details
+        const buildResponse = await axios.get(
+          `https://api.papermc.io/v2/projects/paper/versions/${version}/builds/${latestBuild}`
+        )
+
+        if (!buildResponse.data || !buildResponse.data.downloads || !buildResponse.data.downloads.application) {
+          throw new Error(`Invalid build data for version ${version} build ${latestBuild}`)
+        }
+
+        const expectedSha256 = buildResponse.data.downloads.application.sha256
+        if (fileHash.toLowerCase() !== expectedSha256.toLowerCase()) {
+          console.error(`SHA-256 hash mismatch for Paper server ${version}`)
+          console.error(`Expected: ${expectedSha256}`)
+          console.error(`Got: ${fileHash}`)
+          return false
+        }
+      }
+
+      // If we get here, the hash is valid
+      return true
+    } catch (error) {
+      console.error('Error validating server JAR:', error)
+      return false
+    }
   }
 
   async getCacheContents() {
@@ -216,6 +387,27 @@ class MinecraftService {
     } catch (error) {
       console.error('Error clearing cache:', error)
       throw new Error('Failed to clear cache')
+    }
+  }
+
+  async cleanupCache() {
+    try {
+      const files = await fs.readdir(this.cacheDir)
+      const now = Date.now()
+      const maxAge = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+      for (const file of files) {
+        const filepath = path.join(this.cacheDir, file)
+        const stats = await fs.stat(filepath)
+        const age = now - stats.mtime.getTime()
+
+        if (age > maxAge) {
+          await fs.unlink(filepath)
+          console.log(`Deleted old cache file: ${file}`)
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up cache:', error)
     }
   }
 }

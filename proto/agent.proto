@@ -12,6 +12,7 @@ service AgentService {
   rpc GetServerStatus (ServerActionRequest) returns (ServerStatusResponse) {}
   rpc Heartbeat (HeartbeatRequest) returns (HeartbeatResponse) {}
   rpc UpdateMetrics (MetricsRequest) returns (MetricsResponse) {}
+  rpc InstallJava (InstallJavaRequest) returns (InstallJavaResponse) {}
 }
 
 message RegisterNodeRequest {
@@ -152,6 +153,31 @@ message MetricsRequest {
 }
 
 message MetricsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateCredentialsRequest {
+  string nodeId = 1;
+  string apiKey = 2;
+  CertificatePair certificates = 3;
+}
+
+message CertificatePair {
+  string publicKey = 1;
+  string privateKey = 2;
+}
+
+message UpdateCredentialsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message InstallJavaRequest {
+  string nodeId = 1;
+}
+
+message InstallJavaResponse {
   bool success = 1;
   string message = 2;
 }

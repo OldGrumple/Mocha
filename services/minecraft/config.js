@@ -10,7 +10,7 @@ module.exports = {
     // API endpoints for different server types
     apiEndpoints: {
         vanilla: {
-            manifest: 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
+            manifest: 'https://piston-meta.mojang.com/mc/game/version_manifest.json'
         },
         paper: {
             project: 'https://api.papermc.io/v2/projects/paper',

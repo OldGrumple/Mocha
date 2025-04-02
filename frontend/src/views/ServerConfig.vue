@@ -11,7 +11,7 @@
         </router-link>
       </div>
 
-      <MinecraftConfigEditor
+      <ServerPropertiesEditor
         :server-id="serverId"
         @config-saved="handleConfigSaved"
       />
@@ -22,7 +22,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import MinecraftConfigEditor from '../components/MinecraftConfigEditor.vue'
+import ServerPropertiesEditor from '../components/ServerPropertiesEditor.vue'
 
 const route = useRoute()
 const router = useRouter()

@@ -34,10 +34,13 @@ const serverSchema = new mongoose.Schema({
             'provisioning_download',
             'provisioning_config',
             'provisioned',
+            'starting',
             'running',
+            'stopping',
             'stopped',
             'failed',
-            'deleting'
+            'deleting',
+            'jar_swap_in_progress'
         ],
         default: 'provisioning'
     },

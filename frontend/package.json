@@ -11,6 +11,7 @@
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.26.6",
     "@kurkle/color": "^0.3.4",
+    "@xterm/xterm": "^5.5.0",
     "axios": "^1.6.2",
     "chart.js": "^4.4.8",
     "core-js": "^3.8.3",

@@ -44,6 +44,9 @@
         </div>
       </div>
 
+      <!-- Java Status Card -->
+      <JavaStatusCard :nodeId="node._id" />
+
       <!-- System Metrics -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- CPU Usage -->
@@ -119,6 +122,12 @@
         </div>
       </div>
 
+      <!-- Security Management -->
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-xl font-semibold mb-4">Security Management</h2>
+        <NodeSecurityManager :nodeId="node._id" />
+      </div>
+
       <!-- Running Servers -->
       <div class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-xl font-semibold mb-4">Running Servers</h2>
@@ -163,6 +172,8 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import Chart from 'chart.js/auto';
+import NodeSecurityManager from '@/components/NodeSecurityManager.vue';
+import JavaStatusCard from '../components/JavaStatusCard.vue';
 
 const route = useRoute();
 const router = useRouter();

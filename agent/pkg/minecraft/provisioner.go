@@ -108,7 +108,7 @@ func (p *Provisioner) ProvisionServer(serverID, serverName, version string, conf
 	p.reportProgress("setup", 0, "Starting server provisioning", nil)
 
 	// Create server directory
-	serverDir := filepath.Join(p.baseDir, serverName)
+	serverDir := filepath.Join(p.baseDir, serverID)
 	log.Printf("Creating server directory: %s", serverDir)
 	if err := os.MkdirAll(serverDir, 0755); err != nil {
 		log.Printf("Failed to create server directory: %v", err)

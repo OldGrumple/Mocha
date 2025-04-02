@@ -28,7 +28,8 @@ export default {
         'provisioned': 'bg-green-100 text-green-800',
         'running': 'bg-green-100 text-green-800',
         'stopped': 'bg-yellow-100 text-yellow-800',
-        'failed': 'bg-red-100 text-red-800'
+        'failed': 'bg-red-100 text-red-800',
+        'jar_swap_in_progress': 'bg-purple-100 text-purple-800'
       };
       return classes[this.status] || 'bg-gray-100 text-gray-800';
     },
@@ -36,6 +37,9 @@ export default {
     formatStatus() {
       if (this.status.startsWith('provisioning_')) {
         return 'Provisioning';
+      }
+      if (this.status === 'jar_swap_in_progress') {
+        return 'Swapping Jar';
       }
       return this.status.charAt(0).toUpperCase() + this.status.slice(1);
     }
