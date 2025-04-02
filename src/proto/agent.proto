@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package agent;
+
+service AgentService {
+  rpc RegisterNode (RegisterNodeRequest) returns (RegisterNodeResponse) {}
+  rpc ProvisionServer (ProvisionRequest) returns (ProvisionResponse) {}
+  rpc StartServer (ServerActionRequest) returns (ServerActionResponse) {}
+  rpc StopServer (ServerActionRequest) returns (ServerActionResponse) {}
+  rpc DeleteServer (ServerActionRequest) returns (ServerActionResponse) {}
+  rpc UpdatePlugins (UpdatePluginsRequest) returns (UpdatePluginsResponse) {}
+  rpc GetServerStatus (ServerActionRequest) returns (ServerStatusResponse) {}
+  rpc Heartbeat (HeartbeatRequest) returns (HeartbeatResponse) {}
+  rpc UpdateMetrics (MetricsRequest) returns (MetricsResponse) {}
+  rpc InstallJava (InstallJavaRequest) returns (InstallJavaResponse) {}
+}
+
+message RegisterNodeRequest {
+  string node_id = 1;
+  string api_key = 2;
+  string address = 3;
+  string hostname = 4;
+  string os = 5;
+  int64 memory_bytes = 6;
+  int32 cpu_cores = 7;
+  string ip_address = 8;
+}
+
+message RegisterNodeResponse {
+  bool success = 1;
+  string message = 2;
+  string api_key = 3;
+}
+
+// 🆕 New ServerConfig message
+message ServerConfig {
+  serverType serverType = 1;
+  int32 memory = 2;
+  string difficulty = 3;
+  string gameMode = 4;
+  int32 maxPlayers = 5;
+  int32 port = 6;
+  int32 viewDistance = 7;
+  int32 spawnProtection = 8;
+  string seed = 9;
+  string worldType = 10;
+  bool generateStructures = 11;
+}
+
+message ProvisionRequest {
+  string name = 1;
+  string minecraftVersion = 2;
+  repeated Plugin plugins = 3;
+  string nodeId = 4;
+  string serverId = 5;
+  string apiKey = 6;
+
+  // 🆕 Move config into a nested message
+  ServerConfig config = 7;
+}
+
+enum serverType {
+  VANILLA = 0;
+  FORGE = 1;
+  FABRIC = 2;
+  PAPER = 3;
+}
+
+message ProvisionResponse {
+  string instanceId = 1;
+  string message = 2;
+  bool success = 3;
+}
+
+message ServerActionRequest {
+  string instanceId = 1;
+  string nodeId = 2;
+  string serverId = 3;
+  string apiKey = 4;
+  string action = 5;
+}
+
+message ServerActionResponse {
+  string message = 1;
+  bool success = 2;
+}
+
+message UpdatePluginsRequest {
+  string instanceId = 1;
+  repeated Plugin plugins = 2;
+  string nodeId = 3;
+  string serverId = 4;
+  string apiKey = 5;
+}
+
+message UpdatePluginsResponse {
+  string message = 1;
+  bool success = 2;
+}
+
+message ServerStatusResponse {
+  string instanceId = 1;
+  string status = 2;
+  string message = 3;
+  bool success = 4;
+}
+
+message Plugin {
+  string name = 1;
+  string version = 2;
+}
+
+message HeartbeatRequest {
+  string nodeId = 1;
+  int64 timestamp = 2;
+  repeated ServerStatus servers = 3;
+  SystemMetrics metrics = 4;
+  string apiKey = 5;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SystemMetrics {
+  double cpuUsage = 1;
+  int32 cpuCores = 2;
+  int64 memoryUsed = 3;
+  int64 memoryTotal = 4;
+  double diskUsage = 5;
+  int64 networkBytesIn = 6;
+  int64 networkBytesOut = 7;
+}
+
+message ServerStatus {
+  string serverId = 1;
+  string status = 2;
+  int32 playerCount = 3;
+  string message = 4;
+}
+
+message MetricsRequest {
+  string nodeId = 1;
+  double cpuUsage = 2;
+  int32 cpuCores = 3;
+  int64 memoryUsed = 4;
+  int64 memoryTotal = 5;
+  double diskUsage = 6;
+  int64 networkBytesIn = 7;
+  int64 networkBytesOut = 8;
+  string apiKey = 9;
+}
+
+message MetricsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message UpdateCredentialsRequest {
+  string nodeId = 1;
+  string apiKey = 2;
+  CertificatePair certificates = 3;
+}
+
+message CertificatePair {
+  string publicKey = 1;
+  string privateKey = 2;
+}
+
+message UpdateCredentialsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message InstallJavaRequest {
+  string nodeId = 1;
+}
+
+message InstallJavaResponse {
+  bool success = 1;
+  string message = 2;
+}
