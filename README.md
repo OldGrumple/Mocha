@@ -30,6 +30,7 @@ mocha/
 - Protocol Buffers compiler (protoc)
 - gRPC tools
 - PM2 (for production deployment)
+- serve (for serving frontend in production)
 
 ## Setup
 
@@ -51,12 +52,17 @@ cd ../frontend
 npm install
 ```
 
-4. Set up environment variables:
+4. Install serve globally (for frontend production):
+```bash
+npm install -g serve
+```
+
+5. Set up environment variables:
    - Copy `config/env/.env.example` to `config/env/.env.development` for development
    - Copy `config/env/.env.example` to `config/env/.env.production` for production
    - Update the environment variables as needed
 
-5. Generate gRPC code:
+6. Generate gRPC code:
 ```bash
 cd src
 npm run generate:grpc
@@ -90,7 +96,12 @@ npm install -g pm2
 
 2. Build the project:
 ```bash
-cd backend/src
+# Build frontend
+cd frontend
+npm run build
+
+# Build backend
+cd ../src
 npm run build:prod
 ```
 
@@ -149,6 +160,7 @@ Key environment variables:
 - `GRPC_PORT`: gRPC server port (default: 50051)
 - `MONGODB_URI`: MongoDB connection string
 - `JWT_SECRET`: Secret key for JWT token generation
+- `FRONTEND_PORT`: Frontend server port (default: 8080)
 
 ## Features
 
