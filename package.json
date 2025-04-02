@@ -11,6 +11,7 @@
     "grpc:prod": "NODE_ENV=production node src/grpc/server.js",
     "node": "NODE_ENV=development node scripts/runNode.js",
     "node:prod": "NODE_ENV=production node scripts/runNode.js",
+    "deploy:node": "node scripts/deployNode.js",
     "test": "jest"
   }
 } 
