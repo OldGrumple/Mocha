@@ -151,6 +151,8 @@ pm2 startup
 
 ## Environment Variables
 
+### Backend Environment Variables
+
 Key environment variables:
 
 - `API_HOST`: API server host (default: localhost)
@@ -159,6 +161,21 @@ Key environment variables:
 - `GRPC_PORT`: gRPC server port (default: 50051)
 - `MONGODB_URI`: MongoDB connection string
 - `JWT_SECRET`: Secret key for JWT token generation
+
+### Frontend Environment Variables
+
+The frontend uses Vue.js environment variables prefixed with `VUE_APP_`:
+
+- `VUE_APP_API_URL`: Backend API URL (default: http://localhost:3000)
+- `VUE_APP_GRPC_URL`: gRPC server URL (default: http://localhost:50051)
+- `VUE_APP_ENABLE_ANALYTICS`: Enable analytics (default: false)
+- `VUE_APP_ENABLE_LOGGING`: Enable logging (default: true)
+- `VUE_APP_TITLE`: Application title
+- `VUE_APP_DESCRIPTION`: Application description
+
+Environment files are located in:
+- Development: `frontend/.env.development`
+- Production: `frontend/.env.production`
 
 ## Features
 
