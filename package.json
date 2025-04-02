@@ -1,0 +1,16 @@
+{
+  "name": "mocha-backend",
+  "version": "1.0.0",
+  "description": "Mocha Minecraft Server Manager Backend",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "NODE_ENV=development nodemon src/app.js",
+    "prod": "NODE_ENV=production node src/app.js",
+    "grpc": "NODE_ENV=development nodemon src/grpc/server.js",
+    "grpc:prod": "NODE_ENV=production node src/grpc/server.js",
+    "node": "NODE_ENV=development node scripts/runNode.js",
+    "node:prod": "NODE_ENV=production node scripts/runNode.js",
+    "test": "jest"
+  }
+} 
