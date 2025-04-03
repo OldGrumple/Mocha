@@ -172,12 +172,14 @@ const fetchServer = async () => {
 
 const startServer = async () => {
   try {
-    await axios.post(`/api/servers/${server.value._id}/start`, {
-      config: server.value.config
-    })
-    server.value.status = 'running'
+    server.value.status = 'starting';
+    server.value.statusMessage = 'Starting server...';
+    const response = await axios.post(`/api/servers/${server.value._id}/start`);
+    server.value = response.data.server;
   } catch (error) {
-    console.error('Error starting server:', error)
+    console.error('Error starting server:', error);
+    server.value.status = 'stopped';
+    server.value.statusMessage = error.response?.data?.error || 'Failed to start server';
   }
 }
 

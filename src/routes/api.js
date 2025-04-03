@@ -299,8 +299,9 @@ router.post('/servers', async (req, res) => {
 });
 
 router.post('/servers/:id/start', async (req, res) => {
+    let server = null;
     try {
-        const server = await Server.findById(req.params.id).populate('nodeId').populate('config');
+        server = await Server.findById(req.params.id).populate('nodeId').populate('config');
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
         }
@@ -373,14 +374,14 @@ router.post('/servers/:id/start', async (req, res) => {
                     await server.save();
                     return true;
                 } else if (status.status === 'error' || status.status === 'stopped') {
-                    server.status = 'error';
+                    server.status = 'stopped';
                     server.statusMessage = status.message || 'Server failed to start';
                     await server.save();
                     return false;
                 }
             } catch (error) {
                 console.error('Error checking server status:', error);
-                server.status = 'error';
+                server.status = 'stopped';
                 server.statusMessage = 'Failed to check server status';
                 await server.save();
                 return false;
@@ -404,7 +405,7 @@ router.post('/servers/:id/start', async (req, res) => {
         }
 
         // If we get here, the server didn't start within the timeout
-        server.status = 'error';
+        server.status = 'stopped';
         server.statusMessage = 'Server failed to start within timeout period';
         await server.save();
         res.status(500).json({ 
@@ -417,7 +418,7 @@ router.post('/servers/:id/start', async (req, res) => {
         // Update server status to error
         if (server && server._id) {
             try {
-                server.status = 'error';
+                server.status = 'stopped';
                 server.statusMessage = error.message || 'Failed to start server';
                 await server.save();
             } catch (updateError) {
