@@ -23,6 +23,9 @@ module.exports = {
     'vue/max-attributes-per-line': ['error', {
       singleline: 3,
       multiline: 1
+    }],
+    'vue/define-macros-order': ['error', {
+      order: ['defineProps', 'defineEmits']
     }]
   }
 } 
