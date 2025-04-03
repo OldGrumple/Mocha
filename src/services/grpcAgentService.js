@@ -4,6 +4,7 @@ const protoLoader = require('@grpc/proto-loader');
 const path = require('path');
 require('dotenv').config();
 const axios = require('axios');
+const fs = require('fs/promises');
 
 // Load the agent.proto
 const packageDefinition = protoLoader.loadSync(path.join(__dirname, '../proto/agent.proto'), {
@@ -59,48 +60,63 @@ class GRPCAgentService {
     });
   }
 
-  provisionServer(serverConfig) {
+  async provisionServer(serverId, config) {
     return new Promise((resolve, reject) => {
-      const serverTypeEnum = this.serverTypeMap[serverConfig.config.server_type.toLowerCase()];
-      if (typeof serverTypeEnum === 'undefined') {
-        return reject(new Error(`Invalid server type: ${serverConfig.config.server_type}`));
-      }
-
-      const request = {
-        name: serverConfig.config.server_name,
-        minecraftVersion: serverConfig.minecraft_version,
-        nodeId: this.node._id,
-        serverId: serverConfig.server_id,
-        apiKey: this.node.apiKey,
-        plugins: serverConfig.plugins || [],
-        config: {
-          serverType: serverTypeEnum,
-          memory: serverConfig.config.memory,
-          difficulty: serverConfig.config.difficulty,
-          gameMode: serverConfig.config.game_mode,
-          maxPlayers: serverConfig.config.max_players,
-          port: serverConfig.config.port,
-          viewDistance: serverConfig.config.view_distance,
-          spawnProtection: serverConfig.config.spawn_protection,
-          seed: serverConfig.config.seed,
-          worldType: serverConfig.config.world_type,
-          generateStructures: serverConfig.config.generate_structures
-        }
-      };
-
-      console.log("Final provisioning request (agent.proto):", JSON.stringify(request, null, 2));
-
-      this.client.ProvisionServer(request, this.metadata(), (err, response) => {
-        if (err) reject(err);
-        else {
-          // Update the server config with the allocated port
-          if (response.port) {
-            serverConfig.config.port = response.port;
+      this.client.ProvisionServer(
+        {
+          serverId,
+          config: {
+            ...config,
+            port: config.port || 25565 // Ensure port is included in the config
           }
-          resolve(response);
+        },
+        this.metadata(),
+        (error, response) => {
+          if (error) {
+            reject(error);
+          } else {
+            // Update the server configuration with the allocated port
+            config.port = response.port;
+            
+            // Update server.properties with the correct port
+            this.updateServerProperties(serverId, response.port)
+              .then(() => {
+                resolve(response);
+              })
+              .catch(err => {
+                console.error('Error updating server.properties:', err);
+                // Still resolve even if properties update fails
+                resolve(response);
+              });
+          }
         }
-      });
+      );
     });
+  }
+
+  // Helper method to update server.properties with the correct port
+  async updateServerProperties(serverId, port) {
+    try {
+      const serverDir = path.join(__dirname, '../servers', serverId);
+      const serverPropertiesPath = path.join(serverDir, 'server.properties');
+      
+      // Check if the file exists
+      try {
+        await fs.access(serverPropertiesPath);
+      } catch (error) {
+        console.log('server.properties not found, will be created during server provisioning');
+        return;
+      }
+      
+      // Read and update the file
+      let properties = await fs.readFile(serverPropertiesPath, 'utf8');
+      properties = properties.replace(/server-port=\d+/, `server-port=${port}`);
+      await fs.writeFile(serverPropertiesPath, properties);
+      console.log(`Updated server.properties for server ${serverId} with port ${port}`);
+    } catch (error) {
+      console.error('Error updating server.properties:', error);
+      throw error;
+    }
   }
 
   startServer(serverId) {

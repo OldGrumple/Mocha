@@ -196,8 +196,8 @@ const generateServerProperties = async (config, serverDir) => {
         `pvp=true`,
         `allow-nether=true`,
         `enable-query=true`,
-        `query.port=25565`,
-        `server-port=25565`
+        `query.port=${config.port || 25565}`,
+        `server-port=${config.port || 25565}`
     ].join('\n');
 
     await fs.writeFile(path.join(serverDir, 'server.properties'), properties);
