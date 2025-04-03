@@ -895,32 +895,36 @@ const agentService = {
             // Handle worker process messages
             workerProcess.stdout.on('data', async (data) => {
                 try {
-                    const message = JSON.parse(data.toString());
-                    if (message.success) {
-                        console.log(`[Worker ${serverId}] ${message.message}`);
+                    const rawMessage = data.toString().trim();
+                    console.log(`[Worker ${serverId}] Raw output:`, rawMessage);
+                    
+                    const parsedMessage = JSON.parse(rawMessage);
+                    if (parsedMessage.success) {
+                        console.log(`[Worker ${serverId}] ${parsedMessage.message}`);
                         // Store log in database
                         await Server.findByIdAndUpdate(serverId, {
                             $push: {
                                 logs: {
                                     level: 'info',
-                                    message: message.message
+                                    message: parsedMessage.message
                                 }
                             }
                         });
                     } else {
-                        console.error(`[Worker ${serverId}] Error: ${message.error}`);
+                        console.error(`[Worker ${serverId}] Error:`, parsedMessage.error);
                         // Store error log in database
                         await Server.findByIdAndUpdate(serverId, {
                             $push: {
                                 logs: {
                                     level: 'error',
-                                    message: message.error
+                                    message: parsedMessage.error
                                 }
                             }
                         });
                     }
                 } catch (error) {
                     console.error(`[Worker ${serverId}] Error parsing message:`, error);
+                    console.error(`[Worker ${serverId}] Raw message:`, rawMessage);
                     // Store error log in database
                     await Server.findByIdAndUpdate(serverId, {
                         $push: {
@@ -934,7 +938,7 @@ const agentService = {
             });
 
             workerProcess.stderr.on('data', async (data) => {
-                const error = data.toString();
+                const error = data.toString().trim();
                 console.error(`[Worker ${serverId} Error] ${error}`);
                 // Store error log in database
                 await Server.findByIdAndUpdate(serverId, {
@@ -973,6 +977,46 @@ const agentService = {
 
             // Send start command to worker
             workerProcess.stdin.write(JSON.stringify({ command: 'start' }) + '\n');
+
+            // Wait for server to start
+            const startPromise = new Promise((resolve) => {
+                const timeout = setTimeout(() => {
+                    console.log(`Start command timed out for server ${serverId}`);
+                    resolve(false);
+                }, 30000); // 30 second timeout
+
+                const handleStartResponse = (data) => {
+                    try {
+                        const message = data.toString().trim();
+                        console.log(`[Worker ${serverId}] Start response:`, message);
+                        const parsedMessage = JSON.parse(message);
+                        if (parsedMessage.success) {
+                            clearTimeout(timeout);
+                            resolve(true);
+                        } else {
+                            console.error(`[Worker ${serverId}] Start failed:`, parsedMessage.error);
+                            resolve(false);
+                        }
+                    } catch (error) {
+                        console.error(`[Worker ${serverId}] Error parsing start response:`, error);
+                        resolve(false);
+                    }
+                };
+
+                workerProcess.stdout.once('data', handleStartResponse);
+            });
+
+            const started = await startPromise;
+            if (!started) {
+                serverInfo.status = 'error';
+                serverInfo.statusMessage = 'Failed to start server';
+                runningServers.set(serverId, serverInfo);
+                callback({
+                    code: grpc.status.INTERNAL,
+                    message: 'Failed to start server'
+                });
+                return;
+            }
 
             callback(null, {
                 success: true,
