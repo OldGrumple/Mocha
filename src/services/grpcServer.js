@@ -1292,23 +1292,168 @@ server.addService(protoDescriptor.agent.AgentService.service, agentService);
 
 const port = process.env.GRPC_PORT || 50051;
 
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log("✅ MongoDB connected");
+// Initialize running servers from database
+async function initializeRunningServers() {
+    try {
+        // Find all servers, not just active ones
+        const servers = await Server.find({}).populate('nodeId');
 
-  server.bindAsync(`0.0.0.0:${port}`, grpc.ServerCredentials.createInsecure(), (err, boundPort) => {
-    if (err) {
-      console.error('❌ Failed to bind gRPC server:', err);
-      process.exit(1);
+        console.log(`Found ${servers.length} servers in database`);
+
+        for (const server of servers) {
+            try {
+                // Get the node information
+                const node = await Node.findById(server.nodeId);
+                if (!node) {
+                    console.error(`Node not found for server ${server._id}`);
+                    continue;
+                }
+
+                // For servers that were previously running, we'll create a worker process
+                if (['running', 'starting', 'stopping'].includes(server.status)) {
+                    // Create worker process for the server
+                    const workerProcess = spawn('node', [
+                        path.join(__dirname, 'minecraftServerWorker.js'),
+                        server._id.toString(),
+                        JSON.stringify(server.config)
+                    ], {
+                        stdio: ['pipe', 'pipe', 'pipe']
+                    });
+
+                    // Set up worker process event handlers
+                    workerProcess.stdout.on('data', async (data) => {
+                        try {
+                            const parsedMessage = JSON.parse(data.toString().trim());
+                            if (parsedMessage.success) {
+                                if (parsedMessage.log) {
+                                    await Server.findByIdAndUpdate(server._id, {
+                                        $push: {
+                                            logs: {
+                                                level: parsedMessage.log.level,
+                                                message: parsedMessage.log.message,
+                                                timestamp: new Date()
+                                            }
+                                        }
+                                    });
+                                } else if (parsedMessage.status) {
+                                    const serverInfo = runningServers.get(server._id.toString());
+                                    if (serverInfo) {
+                                        serverInfo.status = parsedMessage.status.status;
+                                        serverInfo.statusMessage = parsedMessage.status.statusMessage;
+                                        serverInfo.playerCount = parsedMessage.status.playerCount;
+                                        runningServers.set(server._id.toString(), serverInfo);
+
+                                        await Server.findByIdAndUpdate(server._id, {
+                                            status: parsedMessage.status.status,
+                                            statusMessage: parsedMessage.status.statusMessage,
+                                            playerCount: parsedMessage.status.playerCount
+                                        });
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.error(`Error processing worker output for server ${server._id}:`, error);
+                        }
+                    });
+
+                    workerProcess.stderr.on('data', async (data) => {
+                        const error = data.toString().trim();
+                        await Server.findByIdAndUpdate(server._id, {
+                            status: 'error',
+                            statusMessage: error,
+                            $push: {
+                                logs: {
+                                    level: 'error',
+                                    message: error,
+                                    timestamp: new Date()
+                                }
+                            }
+                        });
+                    });
+
+                    workerProcess.on('exit', async (code) => {
+                        const serverInfo = runningServers.get(server._id.toString());
+                        if (serverInfo) {
+                            serverInfo.worker = null;
+                            serverInfo.status = code === 0 ? 'stopped' : 'error';
+                            serverInfo.statusMessage = `Server stopped (exit code: ${code})`;
+                            runningServers.set(server._id.toString(), serverInfo);
+
+                            await Server.findByIdAndUpdate(server._id, {
+                                status: code === 0 ? 'stopped' : 'error',
+                                statusMessage: `Server stopped (exit code: ${code})`
+                            });
+                        }
+                    });
+
+                    // Store server info in runningServers map with worker process
+                    runningServers.set(server._id.toString(), {
+                        serverId: server._id.toString(),
+                        name: server.name,
+                        version: server.minecraftVersion,
+                        config: server.config,
+                        status: server.status,
+                        statusMessage: server.statusMessage,
+                        playerCount: server.playerCount,
+                        nodeId: node._id,
+                        apiKey: node.apiKey,
+                        worker: workerProcess
+                    });
+
+                    console.log(`Restored running server ${server._id} to active state`);
+                } else {
+                    // For non-running servers, just store the info without a worker process
+                    runningServers.set(server._id.toString(), {
+                        serverId: server._id.toString(),
+                        name: server.name,
+                        version: server.minecraftVersion,
+                        config: server.config,
+                        status: server.status || 'stopped',
+                        statusMessage: server.statusMessage || 'Server is stopped',
+                        playerCount: server.playerCount || 0,
+                        nodeId: node._id,
+                        apiKey: node.apiKey,
+                        worker: null
+                    });
+
+                    console.log(`Mapped stopped server ${server._id}`);
+                }
+            } catch (error) {
+                console.error(`Error initializing server ${server._id}:`, error);
+                // Update server status to error in database
+                await Server.findByIdAndUpdate(server._id, {
+                    status: 'error',
+                    statusMessage: `Failed to initialize server: ${error.message}`
+                });
+            }
+        }
+
+        console.log(`Successfully mapped ${runningServers.size} servers`);
+    } catch (error) {
+        console.error('Error initializing running servers:', error);
     }
-    console.log(`🚀 gRPC server running on port ${boundPort}`);
-    server.start();
-  });
+}
+
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+}).then(async () => {
+    console.log("✅ MongoDB connected");
+
+    // Initialize running servers before starting gRPC server
+    await initializeRunningServers();
+
+    server.bindAsync(`0.0.0.0:${port}`, grpc.ServerCredentials.createInsecure(), (err, boundPort) => {
+        if (err) {
+            console.error('❌ Failed to bind gRPC server:', err);
+            process.exit(1);
+        }
+        console.log(`🚀 gRPC server running on port ${boundPort}`);
+        server.start();
+    });
 }).catch(err => {
-  console.error("❌ MongoDB connection failed:", err);
-  process.exit(1);
+    console.error("❌ MongoDB connection failed:", err);
+    process.exit(1);
 });
 
 module.exports = {
