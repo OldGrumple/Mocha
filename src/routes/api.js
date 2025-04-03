@@ -24,6 +24,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
+const mongoose = require('mongoose');
 
 // Node Routes
 router.get('/nodes', async (req, res) => {
@@ -155,6 +156,13 @@ router.post('/servers', async (req, res) => {
     try {
         console.log('Received server creation request:', req.body);
 
+        // Validate required fields
+        if (!req.body.name || !req.body.minecraftVersion || !req.body.serverType) {
+            return res.status(400).json({ 
+                error: 'Missing required fields: name, minecraftVersion, and serverType are required' 
+            });
+        }
+
         // Get all available nodes first
         const nodes = await Node.find({ status: 'online' });
         console.log('Found online nodes:', nodes.length);
@@ -169,11 +177,12 @@ router.post('/servers', async (req, res) => {
 
         // Create server in database first
         const newServer = new Server({
-            _id: req.body._id,
             name: req.body.name,
             minecraftVersion: req.body.minecraftVersion,
             serverType: req.body.serverType,
-            nodeId: selectedNode._id
+            nodeId: selectedNode._id,
+            status: 'creating',
+            statusMessage: 'Initializing server...'
         });
         await newServer.save();
         console.log('Created server in database:', newServer._id);
@@ -208,7 +217,18 @@ router.post('/servers', async (req, res) => {
         await config.save();
         console.log('Created server configuration:', config);
 
-        // ✅ NOW it's safe to use `config`
+        // Update server with config reference
+        newServer.config = config._id;
+        await newServer.save();
+
+        // For development, use localhost instead of the node's address
+        if (process.env.NODE_ENV === 'development') {
+            selectedNode.address = 'localhost:50051';
+        }
+
+        console.log('Creating gRPC client for node:', selectedNode.address);
+        const grpcClient = new GRPCAgentService(selectedNode);
+
         const serverConfig = {
             server_id: newServer._id.toString(),
             minecraft_version: newServer.minecraftVersion,
@@ -229,21 +249,6 @@ router.post('/servers', async (req, res) => {
             plugins: req.body.plugins || []
         };
 
-        await config.save();
-        console.log('Created server configuration:', config);
-
-        // Update server with config reference
-        newServer.config = config._id;
-        await newServer.save();
-
-        // For development, use localhost instead of the node's address
-        if (process.env.NODE_ENV === 'development') {
-            selectedNode.address = 'localhost:50051';
-        }
-
-        console.log('Creating gRPC client for node:', selectedNode.address);
-        const grpcClient = new GRPCAgentService(selectedNode);
-
         console.log('Sending provisioning request to agent:', serverConfig);
 
         const provisionResponse = await grpcClient.provisionServer(serverConfig);
@@ -255,13 +260,27 @@ router.post('/servers', async (req, res) => {
         }
         
         newServer.instanceId = provisionResponse.instanceId;
+        newServer.status = 'stopped';
+        newServer.statusMessage = 'Server created successfully';
         await newServer.save();
         console.log('Updated server with instance ID:', newServer.instanceId);
 
         // Return the updated server with instanceId
-        res.json({newServer});
+        res.json({ server: newServer });
     } catch (error) {
         console.error('Error in server creation:', error);
+        // If we created a server but failed to provision it, clean up
+        if (newServer && newServer._id) {
+            try {
+                await Server.deleteOne({ _id: newServer._id });
+                await ServerConfig.deleteOne({ serverId: newServer._id });
+                // Clean up server directory
+                const serverDir = path.join(__dirname, '../servers', newServer._id.toString());
+                await fsPromises.rm(serverDir, { recursive: true, force: true });
+            } catch (cleanupError) {
+                console.error('Error cleaning up failed server creation:', cleanupError);
+            }
+        }
         res.status(500).json({ error: error.message });
     }
 });
@@ -598,6 +617,11 @@ router.put('/servers/:id/config', async (req, res) => {
 // Server Configuration Files Routes
 router.get('/servers/:id/config/banned-ips.json', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -618,6 +642,11 @@ router.get('/servers/:id/config/banned-ips.json', async (req, res) => {
 
 router.post('/servers/:id/config/banned-ips.json', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -638,6 +667,11 @@ router.post('/servers/:id/config/banned-ips.json', async (req, res) => {
 
 router.delete('/servers/:id/config/banned-ips.json/:ip', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -653,6 +687,11 @@ router.delete('/servers/:id/config/banned-ips.json/:ip', async (req, res) => {
 
 router.get('/servers/:id/config/banned-players.json', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -673,6 +712,11 @@ router.get('/servers/:id/config/banned-players.json', async (req, res) => {
 
 router.post('/servers/:id/config/banned-players.json', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -693,6 +737,11 @@ router.post('/servers/:id/config/banned-players.json', async (req, res) => {
 
 router.delete('/servers/:id/config/banned-players.json/:name', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -708,6 +757,11 @@ router.delete('/servers/:id/config/banned-players.json/:name', async (req, res) 
 
 router.get('/servers/:id/config/ops.json', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -728,6 +782,11 @@ router.get('/servers/:id/config/ops.json', async (req, res) => {
 
 router.post('/servers/:id/config/ops.json', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -748,6 +807,11 @@ router.post('/servers/:id/config/ops.json', async (req, res) => {
 
 router.delete('/servers/:id/config/ops.json/:name', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -763,6 +827,11 @@ router.delete('/servers/:id/config/ops.json/:name', async (req, res) => {
 
 router.get('/servers/:id/config/whitelist.json', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -783,6 +852,11 @@ router.get('/servers/:id/config/whitelist.json', async (req, res) => {
 
 router.post('/servers/:id/config/whitelist.json', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
@@ -803,6 +877,11 @@ router.post('/servers/:id/config/whitelist.json', async (req, res) => {
 
 router.delete('/servers/:id/config/whitelist.json/:name', async (req, res) => {
     try {
+        // Validate server ID
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });

@@ -12,7 +12,8 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production'
-      }
+      },
+      env_file: './config/env/.env.production'
     },
     {
       name: 'mocha-grpc',
@@ -26,7 +27,8 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production'
-      }
+      },
+      env_file: './config/env/.env.production'
     }
   ]
 }; 

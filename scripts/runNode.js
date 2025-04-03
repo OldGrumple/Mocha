@@ -1,4 +1,4 @@
-const NodeClient = require('../services/nodeClient');
+const NodeClient = require('../src/services/nodeClient');
 require('dotenv').config();
 
 async function main() {
