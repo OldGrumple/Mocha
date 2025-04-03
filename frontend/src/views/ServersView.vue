@@ -127,9 +127,9 @@
               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
               required
             >
-              <option v-for="node in nodes" :key="node._id" :value="node._id">
+              <!-- <option v-for="node in nodes" :key="node._id" :value="node._id">
                 {{ node.name }}
-              </option>
+              </option> -->
             </select>
           </div>
           <div class="mb-4">
