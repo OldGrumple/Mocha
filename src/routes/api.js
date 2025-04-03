@@ -28,6 +28,9 @@ const fs = require('fs');
 const fsPromises = require('fs').promises;
 const mongoose = require('mongoose');
 
+// Import plugin routes
+const pluginRoutes = require('./pluginRoutes');
+
 // Node Routes
 router.get('/nodes', async (req, res) => {
     try {
@@ -1392,5 +1395,8 @@ router.post('/nodes/:id/force-kill-servers', async (req, res) => {
     res.status(500).json({ error: 'Failed to force kill servers', details: error.message });
   }
 });
+
+// Include plugin routes
+router.use('/', pluginRoutes);
 
 module.exports = router;

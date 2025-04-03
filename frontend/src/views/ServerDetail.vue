@@ -135,6 +135,18 @@
           <div v-if="currentTab === 'logs'">
             <ServerLogs :serverId="server._id" />
           </div>
+
+          <!-- Plugins Tab -->
+          <div v-if="currentTab === 'plugins' && server.serverType === 'paper'">
+            <ServerPlugins :serverId="server._id" />
+          </div>
+          <div v-else-if="currentTab === 'plugins' && server.serverType !== 'paper'" class="text-center py-8">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">Plugin management not available</h3>
+            <p class="mt-1 text-sm text-gray-500">Plugin management is only available for Paper servers.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -150,6 +162,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import ServerLogs from '../components/ServerLogs.vue'
+import ServerPlugins from '../components/ServerPlugins.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -158,7 +171,8 @@ const currentTab = ref('overview')
 
 const tabs = [
   { name: 'overview', label: 'Overview' },
-  { name: 'logs', label: 'Logs' }
+  { name: 'logs', label: 'Logs' },
+  { name: 'plugins', label: 'Plugins' }
 ]
 
 const fetchServer = async () => {

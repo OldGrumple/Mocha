@@ -958,10 +958,18 @@ const agentService = {
                         const message = data.toString().trim();
                         console.log(`[Worker ${serverId}] Start response:`, message);
                         const parsedMessage = JSON.parse(message);
-                        if (parsedMessage.success) {
+                        
+                        // Check if this is a success message with a "message" property
+                        if (parsedMessage.success && parsedMessage.message) {
                             clearTimeout(timeout);
                             resolve(true);
-                        } else {
+                        } 
+                        // If it's a status update, we'll continue waiting for the final success message
+                        else if (parsedMessage.success && parsedMessage.status) {
+                            // This is just a status update, not the final success message
+                            console.log(`[Worker ${serverId}] Status update:`, parsedMessage.status);
+                        } 
+                        else if (!parsedMessage.success) {
                             console.error(`[Worker ${serverId}] Start failed:`, parsedMessage.error);
                             // Kill the worker process on failure
                             if (workerProcess) {
