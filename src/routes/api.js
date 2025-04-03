@@ -1366,4 +1366,31 @@ router.get('/servers/:id/logs', async (req, res) => {
     }
 });
 
+// Add new endpoint for force killing all servers on a node
+router.post('/nodes/:id/force-kill-servers', async (req, res) => {
+  try {
+    const node = await Node.findById(req.params.id);
+    if (!node) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+
+    // For development, use localhost instead of the node's address
+    if (process.env.NODE_ENV === 'development') {
+      node.address = 'localhost:50051';
+    }
+
+    const grpcClient = new GRPCAgentService(node);
+    const result = await grpcClient.forceKillAllServers();
+
+    res.json({
+      success: true,
+      message: result.message,
+      killedCount: result.killedCount
+    });
+  } catch (error) {
+    console.error('Error force killing servers:', error);
+    res.status(500).json({ error: 'Failed to force kill servers', details: error.message });
+  }
+});
+
 module.exports = router;

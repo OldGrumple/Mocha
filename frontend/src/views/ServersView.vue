@@ -9,7 +9,13 @@
           Manage your Minecraft servers across different nodes.
         </p>
       </div>
-      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none space-x-2">
+        <button
+          class="inline-flex items-center justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:w-auto"
+          @click="confirmForceKillAllServers"
+        >
+          Force Kill All Servers
+        </button>
         <button
           class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto"
           @click="showAddServerModal = true"
@@ -220,6 +226,32 @@
         </div>
       </div>
     </div>
+
+    <!-- Force Kill Confirmation Modal -->
+    <div v-if="showForceKillModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
+      <div class="bg-white rounded-lg p-6 max-w-md w-full">
+        <h2 class="text-lg font-medium mb-4">
+          Force Kill All Servers
+        </h2>
+        <p class="text-sm text-gray-600 mb-4">
+          Are you sure you want to force kill all servers? This action will forcefully terminate all running server processes and cannot be undone.
+        </p>
+        <div class="flex justify-end space-x-3">
+          <button
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            @click="showForceKillModal = false"
+          >
+            Cancel
+          </button>
+          <button
+            class="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+            @click="forceKillAllServers"
+          >
+            Force Kill
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -245,6 +277,7 @@ const newServer = ref({
 })
 const showDeleteModal = ref(false)
 const serverToDelete = ref(null)
+const showForceKillModal = ref(false)
 
 const fetchServers = async () => {
   try {
@@ -374,6 +407,39 @@ const navigateToConfig = (server) => {
 
 const isProvisioning = (status) => {
   return status.startsWith('provisioning') || status === 'failed'
+}
+
+const confirmForceKillAllServers = () => {
+  showForceKillModal.value = true
+}
+
+const forceKillAllServers = async () => {
+  try {
+    // Get the first node (assuming we're using the first node for now)
+    // In a real application, you might want to let the user select a node
+    const nodeId = nodes.value[0]?._id
+    
+    if (!nodeId) {
+      alert('No nodes available')
+      return
+    }
+    
+    const response = await axios.post(`/api/nodes/${nodeId}/force-kill-servers`)
+    
+    if (response.data.success) {
+      alert(`Successfully force killed ${response.data.killedCount} servers`)
+      // Refresh the servers list
+      fetchServers()
+    } else {
+      alert('Failed to force kill servers')
+    }
+    
+    showForceKillModal.value = false
+  } catch (error) {
+    console.error('Error force killing servers:', error)
+    alert(error.response?.data?.error || 'Failed to force kill servers')
+    showForceKillModal.value = false
+  }
 }
 
 onMounted(() => {
