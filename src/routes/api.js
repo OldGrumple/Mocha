@@ -335,11 +335,74 @@ router.post('/servers/:id/start', async (req, res) => {
 
         const grpcClient = new GRPCAgentService(node);
         await grpcClient.startServer(server.instanceId);
-        
-        // Note: The actual running status will be updated by the agent's status updates
-        res.json({ server });
+
+        // Wait for server to start with timeout
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds timeout
+        const checkInterval = 1000; // Check every second
+
+        const checkServerStatus = async () => {
+            try {
+                const status = await grpcClient.getServerStatus(server.instanceId);
+                console.log('Server status check:', status);
+
+                if (status.status === 'running') {
+                    server.status = 'running';
+                    server.statusMessage = 'Server is running';
+                    await server.save();
+                    return true;
+                } else if (status.status === 'error' || status.status === 'stopped') {
+                    server.status = 'error';
+                    server.statusMessage = status.message || 'Server failed to start';
+                    await server.save();
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error checking server status:', error);
+                server.status = 'error';
+                server.statusMessage = 'Failed to check server status';
+                await server.save();
+                return false;
+            }
+            return null; // Continue checking
+        };
+
+        while (attempts < maxAttempts) {
+            const result = await checkServerStatus();
+            if (result === true) {
+                return res.json({ server });
+            } else if (result === false) {
+                return res.status(500).json({ 
+                    error: 'Server failed to start',
+                    status: server.status,
+                    statusMessage: server.statusMessage
+                });
+            }
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            attempts++;
+        }
+
+        // If we get here, the server didn't start within the timeout
+        server.status = 'error';
+        server.statusMessage = 'Server failed to start within timeout period';
+        await server.save();
+        res.status(500).json({ 
+            error: 'Server failed to start within timeout period',
+            status: server.status,
+            statusMessage: server.statusMessage
+        });
     } catch (error) {
         console.error('Error starting server:', error);
+        // Update server status to error
+        if (server && server._id) {
+            try {
+                server.status = 'error';
+                server.statusMessage = error.message || 'Failed to start server';
+                await server.save();
+            } catch (updateError) {
+                console.error('Error updating server status:', updateError);
+            }
+        }
         res.status(500).json({ error: error.message });
     }
 });
