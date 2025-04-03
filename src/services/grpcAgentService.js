@@ -3,6 +3,7 @@ const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
 const path = require('path');
 require('dotenv').config();
+const axios = require('axios');
 
 // Load the agent.proto
 const packageDefinition = protoLoader.loadSync(path.join(__dirname, '../proto/agent.proto'), {
@@ -208,26 +209,53 @@ class GRPCAgentService {
 
       this.client.GetServerStatus(request, this.metadata(), (err, response) => {
         if (err) {
-          // If the error is NOT_FOUND, resolve with a stopped status
+          // If the error is NOT_FOUND, check the database for the actual status
           if (err.code === grpc.status.NOT_FOUND) {
-            resolve({
-              status: 'stopped',
-              statusMessage: 'Server not found',
-              playerCount: 0
-            });
+            // Use axios to get the server status from the database
+            axios.get(`http://localhost:3000/api/servers/${serverId}`)
+              .then(dbResponse => {
+                const server = dbResponse.data.server;
+                resolve({
+                  status: server.status || 'stopped',
+                  statusMessage: server.statusMessage || 'Server is stopped',
+                  playerCount: server.playerCount || 0
+                });
+              })
+              .catch(dbError => {
+                console.error('Error fetching server status from database:', dbError);
+                resolve({
+                  status: 'stopped',
+                  statusMessage: 'Server not found',
+                  playerCount: 0
+                });
+              });
             return;
           }
           reject(err);
           return;
         }
         
-        // If the response indicates the server is stopped or error, update the local state
-        if (response.status === 'stopped' || response.status === 'error') {
-          // You might want to update any local state here if needed
-          console.log(`Server ${serverId} is ${response.status}: ${response.statusMessage}`);
-        }
-        
-        resolve(response);
+        // If we get a response, validate it against the database state
+        axios.get(`http://localhost:3000/api/servers/${serverId}`)
+          .then(dbResponse => {
+            const server = dbResponse.data.server;
+            // If the gRPC status doesn't match the database status, prefer the database status
+            if (server.status && server.status !== response.status) {
+              console.log(`Status mismatch - gRPC: ${response.status}, DB: ${server.status}`);
+              resolve({
+                status: server.status,
+                statusMessage: server.statusMessage || response.statusMessage,
+                playerCount: server.playerCount || response.playerCount || 0
+              });
+            } else {
+              resolve(response);
+            }
+          })
+          .catch(dbError => {
+            console.error('Error validating server status against database:', dbError);
+            // If we can't validate against the database, return the gRPC response
+            resolve(response);
+          });
       });
     });
   }
