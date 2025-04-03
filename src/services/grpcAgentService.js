@@ -107,8 +107,22 @@ class GRPCAgentService {
       };
 
       this.client.StartServer(request, this.metadata(), (err, response) => {
-        if (err) reject(err);
-        else resolve(response);
+        if (err) {
+          // If the error is NOT_FOUND, reject with appropriate error
+          if (err.code === grpc.status.NOT_FOUND) {
+            reject(new Error('Server not found'));
+            return;
+          }
+          reject(err);
+          return;
+        }
+        
+        // If the response indicates success, resolve with the response
+        if (response.success) {
+          resolve(response);
+        } else {
+          reject(new Error(response.message || 'Failed to start server'));
+        }
       });
     });
   }
@@ -124,8 +138,27 @@ class GRPCAgentService {
       };
 
       this.client.StopServer(request, this.metadata(), (err, response) => {
-        if (err) reject(err);
-        else resolve(response);
+        if (err) {
+          // If the error is NOT_FOUND, resolve with a stopped status
+          if (err.code === grpc.status.NOT_FOUND) {
+            resolve({
+              success: true,
+              message: 'Server not found',
+              status: 'stopped',
+              statusMessage: 'Server not found'
+            });
+            return;
+          }
+          reject(err);
+          return;
+        }
+        
+        // If the response indicates success, resolve with the response
+        if (response.success) {
+          resolve(response);
+        } else {
+          reject(new Error(response.message || 'Failed to stop server'));
+        }
       });
     });
   }

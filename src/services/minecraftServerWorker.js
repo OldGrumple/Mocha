@@ -121,37 +121,42 @@ class MinecraftServerWorker {
     async stop() {
         try {
             if (!this.process) {
+                await this.saveLog('info', 'Server is already stopped');
+                await this.updateStatus('stopped', 'Server is already stopped');
                 process.stdout.write(JSON.stringify({ success: true, message: 'Server already stopped' }) + '\n');
                 return;
             }
 
-            this.status = 'stopping';
-            await this.updateStatus('Stopping server...');
+            // Update status to stopping
+            await this.updateStatus('stopping', 'Stopping server...');
+            await this.saveLog('info', 'Stopping server...');
 
             // Send stop command to server console
             this.process.stdin.write('stop\n');
 
             // Create a promise that resolves when the process exits
             const exitPromise = new Promise((resolve) => {
-                this.process.once('exit', (code) => {
+                this.process.once('exit', async (code) => {
                     this.status = 'stopped';
                     this.playerCount = 0;
                     this.process = null;
-                    this.updateStatus(`Server stopped (exit code: ${code})`);
+                    await this.updateStatus('stopped', `Server stopped (exit code: ${code})`);
+                    await this.saveLog('info', `Server stopped with exit code ${code}`);
                     resolve();
                 });
             });
 
             // Create a timeout promise
             const timeoutPromise = new Promise((resolve, reject) => {
-                setTimeout(() => {
+                setTimeout(async () => {
                     if (this.process) {
                         console.log('Server stop timeout reached, force killing process...');
                         this.process.kill('SIGKILL');
                         this.status = 'stopped';
                         this.playerCount = 0;
                         this.process = null;
-                        this.updateStatus('Server force stopped (timeout)');
+                        await this.updateStatus('stopped', 'Server force stopped (timeout)');
+                        await this.saveLog('warn', 'Server force stopped due to timeout');
                         reject(new Error('Server stop timeout reached'));
                     }
                 }, 30000); // 30 second timeout
@@ -166,8 +171,8 @@ class MinecraftServerWorker {
             }
         } catch (error) {
             console.error('Error stopping server:', error);
-            this.status = 'error';
-            await this.updateStatus(`Error stopping server: ${error.message}`);
+            await this.updateStatus('error', `Error stopping server: ${error.message}`);
+            await this.saveLog('error', `Failed to stop server: ${error.message}`);
             process.stdout.write(JSON.stringify({ success: false, error: error.message }) + '\n');
         }
     }
@@ -197,11 +202,11 @@ class MinecraftServerWorker {
         }
     }
 
-    async updateStatus(message) {
+    async updateStatus(status, message) {
         try {
             // Update status in database
             await axios.put(`http://localhost:3000/api/servers/${this.serverId}/status`, {
-                status: this.status,
+                status,
                 playerCount: this.playerCount,
                 message: message || this.statusMessage
             });
@@ -210,7 +215,7 @@ class MinecraftServerWorker {
             process.stdout.write(JSON.stringify({
                 success: true,
                 status: {
-                    status: this.status,
+                    status,
                     statusMessage: this.statusMessage,
                     playerCount: this.playerCount
                 }

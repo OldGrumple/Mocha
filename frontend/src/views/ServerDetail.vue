@@ -185,10 +185,33 @@ const startServer = async () => {
 
 const stopServer = async () => {
   try {
-    await axios.post(`/api/servers/${server.value._id}/stop`)
-    server.value.status = 'stopped'
+    server.value.status = 'stopping';
+    server.value.statusMessage = 'Stopping server...';
+    await axios.post(`/api/servers/${server.value._id}/stop`);
+    
+    // Poll for server status until it's stopped or error
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await axios.get(`/api/servers/${server.value._id}`);
+        server.value = response.data.server;
+        
+        if (server.value.status === 'stopped' || server.value.status === 'error') {
+          clearInterval(pollInterval);
+        }
+      } catch (error) {
+        console.error('Error polling server status:', error);
+        clearInterval(pollInterval);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    // Clear interval after 35 seconds (timeout)
+    setTimeout(() => {
+      clearInterval(pollInterval);
+    }, 35000);
   } catch (error) {
-    console.error('Error stopping server:', error)
+    console.error('Error stopping server:', error);
+    server.value.status = 'error';
+    server.value.statusMessage = error.response?.data?.error || 'Failed to stop server';
   }
 }
 

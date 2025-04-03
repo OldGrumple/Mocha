@@ -943,6 +943,11 @@ const agentService = {
 
             // Check if server is running
             if (!serverInfo.worker) {
+                // Update database to reflect stopped status
+                await Server.findByIdAndUpdate(serverId, {
+                    status: 'stopped',
+                    statusMessage: 'Server is not running'
+                });
                 callback({
                     code: grpc.status.FAILED_PRECONDITION,
                     message: 'Server is not running'
@@ -950,7 +955,13 @@ const agentService = {
                 return;
             }
 
-            // Update server status to stopping
+            // Update server status to stopping in database
+            await Server.findByIdAndUpdate(serverId, {
+                status: 'stopping',
+                statusMessage: 'Stopping server...'
+            });
+
+            // Update server info
             serverInfo.status = 'stopping';
             serverInfo.statusMessage = 'Stopping server...';
             runningServers.set(serverId, serverInfo);
@@ -960,7 +971,7 @@ const agentService = {
 
             // Wait for stop response
             const stopPromise = new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
+                const timeout = setTimeout(async () => {
                     console.log(`Stop command timed out for server ${serverId}, force killing worker...`);
                     if (serverInfo.worker) {
                         serverInfo.worker.kill('SIGKILL');
@@ -968,28 +979,84 @@ const agentService = {
                         serverInfo.status = 'stopped';
                         serverInfo.statusMessage = 'Server force stopped (timeout)';
                         runningServers.set(serverId, serverInfo);
+                        
+                        // Update database with force stop status
+                        await Server.findByIdAndUpdate(serverId, {
+                            status: 'stopped',
+                            statusMessage: 'Server force stopped (timeout)'
+                        });
+                        
+                        // Add force stop log
+                        await Server.findByIdAndUpdate(serverId, {
+                            $push: {
+                                logs: {
+                                    level: 'warn',
+                                    message: 'Server force stopped due to timeout'
+                                }
+                            }
+                        });
                     }
                     resolve();
                 }, 35000); // 35 seconds timeout (slightly longer than worker timeout)
 
-                serverInfo.worker.once('exit', (code) => {
+                serverInfo.worker.once('exit', async (code) => {
                     clearTimeout(timeout);
                     console.log(`Worker process exited with code ${code} for server ${serverId}`);
                     serverInfo.worker = null;
                     serverInfo.status = 'stopped';
                     serverInfo.statusMessage = `Server stopped (exit code: ${code})`;
                     runningServers.set(serverId, serverInfo);
+
+                    // Update database with final status
+                    await Server.findByIdAndUpdate(serverId, {
+                        status: 'stopped',
+                        statusMessage: `Server stopped (exit code: ${code})`
+                    });
+
+                    // Add stop log
+                    await Server.findByIdAndUpdate(serverId, {
+                        $push: {
+                            logs: {
+                                level: 'info',
+                                message: `Server stopped with exit code ${code}`
+                            }
+                        }
+                    });
+
                     resolve();
                 });
 
-                serverInfo.worker.stdout.once('data', (data) => {
+                // Handle worker output
+                serverInfo.worker.stdout.on('data', async (data) => {
                     try {
-                        const message = JSON.parse(data.toString());
-                        if (!message.success) {
-                            reject(new Error(message.error || 'Failed to stop server'));
+                        const message = JSON.parse(data.toString().trim());
+                        console.log(`[Worker ${serverId}] Stop response:`, message);
+                        
+                        if (message.success) {
+                            if (message.log) {
+                                // Handle log message
+                                await Server.findByIdAndUpdate(serverId, {
+                                    $push: {
+                                        logs: {
+                                            level: message.log.level,
+                                            message: message.log.message
+                                        }
+                                    }
+                                });
+                            } else if (message.status) {
+                                // Handle status update
+                                await Server.findByIdAndUpdate(serverId, {
+                                    status: message.status.status,
+                                    statusMessage: message.status.statusMessage
+                                });
+                            }
+                        } else if (message.error) {
+                            console.error(`[Worker ${serverId}] Error:`, message.error);
+                            reject(new Error(message.error));
                         }
                     } catch (error) {
                         // Ignore parse errors from stdout
+                        console.error(`[Worker ${serverId}] Error parsing message:`, error);
                     }
                 });
             });
@@ -998,10 +1065,17 @@ const agentService = {
 
             callback(null, {
                 success: true,
-                message: 'Server stop initiated'
+                message: 'Server stop completed'
             });
         } catch (error) {
             console.error('Error in StopServer:', error);
+            
+            // Update database with error status
+            await Server.findByIdAndUpdate(serverId, {
+                status: 'error',
+                statusMessage: `Failed to stop server: ${error.message}`
+            });
+
             callback({
                 code: grpc.status.INTERNAL,
                 message: 'Failed to stop server'
