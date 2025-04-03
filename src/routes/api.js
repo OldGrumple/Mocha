@@ -1141,22 +1141,15 @@ router.put('/servers/:id/status', async (req, res) => {
             return res.status(404).json({ error: 'Server not found' });
         }
 
-        const { status, playerCount, message, progress } = req.body;
+        const { status, playerCount, statusMessage } = req.body;
         
         // Update server status
-        server.status = status;
-        if (typeof playerCount !== 'undefined') {
-            server.playerCount = playerCount;
-        }
-        if (message) {
-            server.statusMessage = message;
-        }
-        if (typeof progress !== 'undefined') {
-            server.progress = progress;
-        }
+        if (status) server.status = status;
+        if (typeof playerCount !== 'undefined') server.playerCount = playerCount;
+        if (statusMessage) server.statusMessage = statusMessage;
         
         await server.save();
-        res.json({ message: 'Server status updated successfully' });
+        res.json({ message: 'Server status updated successfully', server });
     } catch (error) {
         console.error('Error updating server status:', error);
         res.status(500).json({ error: 'Failed to update server status' });

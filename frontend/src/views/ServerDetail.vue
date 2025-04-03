@@ -146,7 +146,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import ServerLogs from '../components/ServerLogs.vue'
@@ -165,6 +165,10 @@ const fetchServer = async () => {
   try {
     const response = await axios.get(`/api/servers/${route.params.id}`)
     server.value = response.data.server
+    // If status is missing, set it to unknown
+    if (!server.value.status) {
+      server.value.status = 'unknown'
+    }
   } catch (error) {
     console.error('Error fetching server:', error)
   }
@@ -224,12 +228,40 @@ const getStatusClass = (status) => {
     running: 'text-green-600',
     stopped: 'text-red-600',
     starting: 'text-yellow-600',
-    stopping: 'text-yellow-600'
+    stopping: 'text-yellow-600',
+    error: 'text-red-600',
+    provisioning: 'text-blue-600',
+    unknown: 'text-gray-600'
   }
-  return classes[status] || 'text-gray-600'
+  return classes[status] || classes.unknown
 }
 
+// Poll for server status updates
+const pollStatus = async () => {
+  try {
+    const response = await axios.get(`/api/servers/${route.params.id}/status`)
+    if (server.value) {
+      server.value.status = response.data.status.status || 'unknown'
+      server.value.statusMessage = response.data.status.statusMessage
+      server.value.playerCount = response.data.status.playerCount
+    }
+  } catch (error) {
+    console.error('Error polling server status:', error)
+  }
+}
+
+// Set up polling interval
+let pollInterval
 onMounted(() => {
   fetchServer()
+  // Start polling every 5 seconds
+  pollInterval = setInterval(pollStatus, 5000)
+})
+
+// Clean up polling on component unmount
+onUnmounted(() => {
+  if (pollInterval) {
+    clearInterval(pollInterval)
+  }
 })
 </script> 

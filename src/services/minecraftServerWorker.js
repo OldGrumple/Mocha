@@ -215,17 +215,17 @@ class MinecraftServerWorker {
         try {
             // Update status in database
             await axios.put(`http://localhost:3000/api/servers/${this.serverId}/status`, {
-                status,
-                playerCount: this.playerCount,
-                message: message || this.statusMessage
+                status: status || this.status,
+                statusMessage: message || this.statusMessage,
+                playerCount: this.playerCount
             });
 
             // Also send status update through stdout for gRPC server
             process.stdout.write(JSON.stringify({
                 success: true,
                 status: {
-                    status,
-                    statusMessage: this.statusMessage,
+                    status: status || this.status,
+                    statusMessage: message || this.statusMessage,
                     playerCount: this.playerCount
                 }
             }) + '\n');
