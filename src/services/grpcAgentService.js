@@ -187,6 +187,20 @@ class GRPCAgentService {
     });
   }
 
+  forceKillAllServers() {
+    return new Promise((resolve, reject) => {
+      const request = {
+        nodeId: this.node._id,
+        apiKey: this.node.apiKey
+      };
+
+      this.client.ForceKillAllServers(request, this.metadata(), (err, response) => {
+        if (err) reject(err);
+        else resolve(response);
+      });
+    });
+  }
+
   updatePlugins(serverId, plugins) {
     return new Promise((resolve, reject) => {
       const request = {

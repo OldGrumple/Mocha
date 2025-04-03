@@ -496,6 +496,77 @@ const agentService = {
         }
     },
 
+    ForceKillAllServers: async (call, callback) => {
+        try {
+            const { nodeId, apiKey } = call.request;
+            console.log('Received force kill all servers request for node:', nodeId);
+
+            // Verify node and API key
+            const nodeInfo = registeredNodes.get(nodeId);
+            if (!nodeInfo || nodeInfo.apiKey !== apiKey) {
+                callback({
+                    code: grpc.status.UNAUTHENTICATED,
+                    message: 'Invalid node or API key'
+                });
+                return;
+            }
+
+            let killedCount = 0;
+            const errors = [];
+
+            // Iterate through all running servers for this node
+            for (const [serverId, serverInfo] of runningServers.entries()) {
+                if (serverInfo.nodeId === nodeId) {
+                    try {
+                        // Kill the server process if it exists
+                        if (serverInfo.process) {
+                            serverInfo.process.kill('SIGKILL');
+                            console.log(`Killed server process for ${serverId}`);
+                        }
+
+                        // Release the port
+                        if (serverInfo.port) {
+                            releasePort(serverInfo.port);
+                        }
+
+                        // Update server status in database
+                        await Server.findByIdAndUpdate(serverId, {
+                            status: 'stopped',
+                            statusMessage: 'Server force killed'
+                        });
+
+                        // Remove from running servers
+                        runningServers.delete(serverId);
+                        killedCount++;
+                    } catch (error) {
+                        console.error(`Error killing server ${serverId}:`, error);
+                        errors.push(`Failed to kill server ${serverId}: ${error.message}`);
+                    }
+                }
+            }
+
+            if (killedCount > 0) {
+                callback(null, {
+                    success: true,
+                    message: `Successfully killed ${killedCount} servers`,
+                    killedCount
+                });
+            } else {
+                callback(null, {
+                    success: true,
+                    message: 'No servers were running',
+                    killedCount: 0
+                });
+            }
+        } catch (error) {
+            console.error('Error in ForceKillAllServers:', error);
+            callback({
+                code: grpc.status.INTERNAL,
+                message: `Failed to kill servers: ${error.message}`
+            });
+        }
+    },
+
     // Server management methods
     ProvisionServer: async (call, callback) => {
         try {
