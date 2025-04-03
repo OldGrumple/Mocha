@@ -29,6 +29,7 @@ const serverSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: [
+            'creating',
             'provisioning',
             'provisioning_setup',
             'provisioning_download',

@@ -153,6 +153,7 @@ router.get('/servers', async (req, res) => {
 });
 
 router.post('/servers', async (req, res) => {
+    let newServer = null;
     try {
         console.log('Received server creation request:', req.body);
 
@@ -176,7 +177,7 @@ router.post('/servers', async (req, res) => {
         console.log('Selected node for provisioning:', selectedNode._id);
 
         // Create server in database first
-        const newServer = new Server({
+        newServer = new Server({
             name: req.body.name,
             minecraftVersion: req.body.minecraftVersion,
             serverType: req.body.serverType,
