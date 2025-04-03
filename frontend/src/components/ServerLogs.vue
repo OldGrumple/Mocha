@@ -62,43 +62,56 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 
-const props = defineProps({
-  serverId: {
-    type: String,
-    required: true
+export default {
+  name: 'ServerLogs',
+  props: {
+    serverId: {
+      type: String,
+      required: true
+    }
+  },
+  setup(props) {
+    const logs = ref([])
+    const loading = ref(false)
+    const selectedLevel = ref('')
+
+    const fetchLogs = async () => {
+      loading.value = true
+      try {
+        const response = await axios.get(`/api/servers/${props.serverId}/logs`)
+        logs.value = response.data.logs
+      } catch (error) {
+        console.error('Error fetching logs:', error)
+      } finally {
+        loading.value = false
+      }
+    }
+
+    const filteredLogs = computed(() => {
+      if (!selectedLevel.value) return logs.value
+      return logs.value.filter(log => log.level === selectedLevel.value)
+    })
+
+    const formatTimestamp = (timestamp) => {
+      return new Date(timestamp).toLocaleString()
+    }
+
+    const refreshLogs = () => {
+      fetchLogs()
+    }
+
+    onMounted(() => {
+      fetchLogs()
+    })
+
+    return {
+      logs,
+      loading,
+      selectedLevel,
+      filteredLogs,
+      formatTimestamp,
+      refreshLogs
+    }
   }
-})
-
-const logs = ref([])
-const loading = ref(false)
-const selectedLevel = ref('')
-
-const fetchLogs = async () => {
-  loading.value = true
-  try {
-    const response = await axios.get(`/api/servers/${props.serverId}/logs`)
-    logs.value = response.data.logs
-  } catch (error) {
-    console.error('Error fetching logs:', error)
-  } finally {
-    loading.value = false
-  }
 }
-
-const filteredLogs = computed(() => {
-  if (!selectedLevel.value) return logs.value
-  return logs.value.filter(log => log.level === selectedLevel.value)
-})
-
-const formatTimestamp = (timestamp) => {
-  return new Date(timestamp).toLocaleString()
-}
-
-const refreshLogs = () => {
-  fetchLogs()
-}
-
-onMounted(() => {
-  fetchLogs()
-})
 </script> 
