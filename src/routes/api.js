@@ -178,6 +178,18 @@ router.post('/servers', async (req, res) => {
         await newServer.save();
         console.log('Created server in database:', newServer._id);
 
+        // Create server directory
+        const serverDir = path.join(__dirname, '../servers', newServer._id.toString());
+        await fsPromises.mkdir(serverDir, { recursive: true });
+
+        // Initialize configuration files
+        await Promise.all([
+            writeJsonFile(path.join(serverDir, 'banned-ips.json'), []),
+            writeJsonFile(path.join(serverDir, 'banned-players.json'), []),
+            writeJsonFile(path.join(serverDir, 'ops.json'), []),
+            writeJsonFile(path.join(serverDir, 'whitelist.json'), [])
+        ]);
+
         const config = new ServerConfig({
             serverId: newServer._id,
             serverName: req.body.name,
@@ -192,30 +204,30 @@ router.post('/servers', async (req, res) => {
             generateStructures: req.body.generateStructures !== false,
             memory: req.body.memory || 2,
             port: req.body.port || 25565
-          });
-          await config.save();
-          console.log('Created server configuration:', config);
-          
-          // ✅ NOW it's safe to use `config`
-          const serverConfig = {
+        });
+        await config.save();
+        console.log('Created server configuration:', config);
+
+        // ✅ NOW it's safe to use `config`
+        const serverConfig = {
             server_id: newServer._id.toString(),
             minecraft_version: newServer.minecraftVersion,
             config: {
-              server_name: newServer.name,
-              server_type: config.serverType,
-              max_players: config.maxPlayers || 20,
-              difficulty: config.difficulty || 'normal',
-              game_mode: config.gameMode || 'survival',
-              view_distance: config.viewDistance || 10,
-              spawn_protection: config.spawnProtection || 16,
-              seed: config.seed || '',
-              world_type: config.worldType || 'default',
-              generate_structures: config.generateStructures !== false,
-              memory: config.memory || 2,
-              port: config.port || 25565
+                server_name: newServer.name,
+                server_type: config.serverType,
+                max_players: config.maxPlayers || 20,
+                difficulty: config.difficulty || 'normal',
+                game_mode: config.gameMode || 'survival',
+                view_distance: config.viewDistance || 10,
+                spawn_protection: config.spawnProtection || 16,
+                seed: config.seed || '',
+                world_type: config.worldType || 'default',
+                generate_structures: config.generateStructures !== false,
+                memory: config.memory || 2,
+                port: config.port || 25565
             },
             plugins: req.body.plugins || []
-          };
+        };
 
         await config.save();
         console.log('Created server configuration:', config);
@@ -595,7 +607,12 @@ router.get('/servers/:id/config/banned-ips.json', async (req, res) => {
         res.json(bannedIPs);
     } catch (error) {
         console.error('Error fetching banned IPs:', error);
-        res.status(500).json({ error: 'Failed to fetch banned IPs' });
+        if (error.code === 'ENOENT') {
+            // File doesn't exist, return empty array
+            res.json([]);
+        } else {
+            res.status(500).json({ error: 'Failed to fetch banned IPs' });
+        }
     }
 });
 
@@ -645,7 +662,12 @@ router.get('/servers/:id/config/banned-players.json', async (req, res) => {
         res.json(bannedPlayers);
     } catch (error) {
         console.error('Error fetching banned players:', error);
-        res.status(500).json({ error: 'Failed to fetch banned players' });
+        if (error.code === 'ENOENT') {
+            // File doesn't exist, return empty array
+            res.json([]);
+        } else {
+            res.status(500).json({ error: 'Failed to fetch banned players' });
+        }
     }
 });
 
@@ -695,7 +717,12 @@ router.get('/servers/:id/config/ops.json', async (req, res) => {
         res.json(operators);
     } catch (error) {
         console.error('Error fetching operators:', error);
-        res.status(500).json({ error: 'Failed to fetch operators' });
+        if (error.code === 'ENOENT') {
+            // File doesn't exist, return empty array
+            res.json([]);
+        } else {
+            res.status(500).json({ error: 'Failed to fetch operators' });
+        }
     }
 });
 
@@ -745,7 +772,12 @@ router.get('/servers/:id/config/whitelist.json', async (req, res) => {
         res.json(whitelist);
     } catch (error) {
         console.error('Error fetching whitelist:', error);
-        res.status(500).json({ error: 'Failed to fetch whitelist' });
+        if (error.code === 'ENOENT') {
+            // File doesn't exist, return empty array
+            res.json([]);
+        } else {
+            res.status(500).json({ error: 'Failed to fetch whitelist' });
+        }
     }
 });
 
