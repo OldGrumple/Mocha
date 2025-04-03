@@ -60,26 +60,25 @@ class GRPCAgentService {
     });
   }
 
-  async provisionServer(serverId, config) {
+  async provisionServer(serverConfig) {
     return new Promise((resolve, reject) => {
       this.client.ProvisionServer(
         {
-          serverId,
+          serverId: serverConfig.server_id,
+          minecraftVersion: serverConfig.minecraft_version,
           config: {
-            ...config,
-            port: config.port || 25565 // Ensure port is included in the config
-          }
+            ...serverConfig.config,
+            port: serverConfig.config.port || 25565 // Ensure port is included in the config
+          },
+          plugins: serverConfig.plugins || []
         },
         this.metadata(),
         (error, response) => {
           if (error) {
             reject(error);
           } else {
-            // Update the server configuration with the allocated port
-            config.port = response.port;
-            
             // Update server.properties with the correct port
-            this.updateServerProperties(serverId, response.port)
+            this.updateServerProperties(serverConfig.server_id, response.port)
               .then(() => {
                 resolve(response);
               })
