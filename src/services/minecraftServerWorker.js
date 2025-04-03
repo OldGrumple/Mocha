@@ -217,7 +217,12 @@ class MinecraftServerWorker {
             await axios.put(`http://localhost:3000/api/servers/${this.serverId}/status`, {
                 status: status || this.status,
                 statusMessage: message || this.statusMessage,
-                playerCount: this.playerCount
+                playerCount: this.playerCount,
+                logs: this.lastOutput.map(log => ({
+                    level: 'info',
+                    message: log,
+                    timestamp: new Date()
+                }))
             });
 
             // Also send status update through stdout for gRPC server
@@ -226,7 +231,12 @@ class MinecraftServerWorker {
                 status: {
                     status: status || this.status,
                     statusMessage: message || this.statusMessage,
-                    playerCount: this.playerCount
+                    playerCount: this.playerCount,
+                    logs: this.lastOutput.map(log => ({
+                        level: 'info',
+                        message: log,
+                        timestamp: new Date()
+                    }))
                 }
             }) + '\n');
         } catch (error) {

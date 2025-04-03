@@ -1141,12 +1141,24 @@ router.put('/servers/:id/status', async (req, res) => {
             return res.status(404).json({ error: 'Server not found' });
         }
 
-        const { status, playerCount, statusMessage } = req.body;
+        const { status, playerCount, statusMessage, logs } = req.body;
         
         // Update server status
         if (status) server.status = status;
         if (typeof playerCount !== 'undefined') server.playerCount = playerCount;
         if (statusMessage) server.statusMessage = statusMessage;
+        
+        // Add new logs if provided
+        if (logs && Array.isArray(logs)) {
+            // Add logs to the server's logs array
+            await Server.findByIdAndUpdate(req.params.id, {
+                $push: {
+                    logs: {
+                        $each: logs
+                    }
+                }
+            });
+        }
         
         await server.save();
         res.json({ message: 'Server status updated successfully', server });
