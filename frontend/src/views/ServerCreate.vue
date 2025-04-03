@@ -16,22 +16,6 @@
         />
       </div>
 
-      <!-- Node Selection -->
-      <div>
-        <label for="node" class="block text-sm font-medium text-gray-700">Node</label>
-        <select
-          id="node"
-          v-model="formData.nodeId"
-          required
-          class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-        >
-          <option value="">Select a node</option>
-          <option v-for="node in nodes" :key="node._id" :value="node._id">
-            {{ node.name }}
-          </option>
-        </select>
-      </div>
-
       <!-- Configuration Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Minecraft Configuration -->
@@ -92,8 +76,6 @@ const loading = ref(false)
 const error = ref(null)
 
 const formData = ref({
-  _id: crypto.randomUUID(),
-  nodeId: '',
   name: '',
   minecraftConfig: {
     type: '',
@@ -139,8 +121,6 @@ const handleSubmit = async () => {
     error.value = null
 
     const serverData = {
-      _id: formData.value._id,
-      nodeId: formData.value.nodeId,
       name: formData.value.name,
       minecraftVersion: formData.value.minecraftConfig.version,
       serverType: formData.value.minecraftConfig.type,
