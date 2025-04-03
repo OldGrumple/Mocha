@@ -721,48 +721,52 @@ const agentService = {
             workerProcess.stdout.on('data', async (data) => {
                 try {
                     const rawMessage = data.toString().trim();
-                    console.log(`[Worker ${serverId}] Raw output:`, rawMessage);
-                    
                     const parsedMessage = JSON.parse(rawMessage);
                     if (parsedMessage.success) {
                         if (parsedMessage.log) {
                             // Handle log message
-                            console.log(`[Worker ${serverId}] Log:`, parsedMessage.log);
                             await Server.findByIdAndUpdate(serverId, {
                                 $push: {
                                     logs: {
                                         level: parsedMessage.log.level,
-                                        message: parsedMessage.log.message
+                                        message: parsedMessage.log.message,
+                                        timestamp: new Date()
                                     }
                                 }
                             });
                         } else if (parsedMessage.status) {
                             // Handle status update
-                            console.log(`[Worker ${serverId}] Status:`, parsedMessage.status);
                             serverInfo.status = parsedMessage.status.status;
                             serverInfo.statusMessage = parsedMessage.status.statusMessage;
                             serverInfo.playerCount = parsedMessage.status.playerCount;
                             runningServers.set(serverId, serverInfo);
+
+                            // Update server status in database
+                            await Server.findByIdAndUpdate(serverId, {
+                                status: parsedMessage.status.status,
+                                statusMessage: parsedMessage.status.statusMessage,
+                                playerCount: parsedMessage.status.playerCount
+                            });
                         } else if (parsedMessage.message) {
                             // Handle general success message
-                            console.log(`[Worker ${serverId}] ${parsedMessage.message}`);
                             await Server.findByIdAndUpdate(serverId, {
                                 $push: {
                                     logs: {
                                         level: 'info',
-                                        message: parsedMessage.message
+                                        message: parsedMessage.message,
+                                        timestamp: new Date()
                                     }
                                 }
                             });
                         }
                     } else {
-                        console.error(`[Worker ${serverId}] Error:`, parsedMessage.error);
                         // Store error log in database
                         await Server.findByIdAndUpdate(serverId, {
                             $push: {
                                 logs: {
                                     level: 'error',
-                                    message: parsedMessage.error
+                                    message: parsedMessage.error,
+                                    timestamp: new Date()
                                 }
                             }
                         });
@@ -771,16 +775,21 @@ const agentService = {
                         serverInfo.statusMessage = parsedMessage.error || 'Server failed to start';
                         serverInfo.worker = null;
                         runningServers.set(serverId, serverInfo);
+
+                        // Update server status in database
+                        await Server.findByIdAndUpdate(serverId, {
+                            status: 'error',
+                            statusMessage: parsedMessage.error || 'Server failed to start'
+                        });
                     }
                 } catch (error) {
-                    console.error(`[Worker ${serverId}] Error parsing message:`, error);
-                    console.error(`[Worker ${serverId}] Raw message:`, rawMessage);
                     // Store error log in database
                     await Server.findByIdAndUpdate(serverId, {
                         $push: {
                             logs: {
                                 level: 'error',
-                                message: `Error parsing worker message: ${error.message}`
+                                message: `Error parsing worker message: ${error.message}`,
+                                timestamp: new Date()
                             }
                         }
                     });
@@ -789,13 +798,13 @@ const agentService = {
 
             workerProcess.stderr.on('data', async (data) => {
                 const error = data.toString().trim();
-                console.error(`[Worker ${serverId} Error] ${error}`);
                 // Store error log in database
                 await Server.findByIdAndUpdate(serverId, {
                     $push: {
                         logs: {
                             level: 'error',
-                            message: error
+                            message: error,
+                            timestamp: new Date()
                         }
                     }
                 });
@@ -818,7 +827,8 @@ const agentService = {
                     $push: {
                         logs: {
                             level: 'info',
-                            message: `Server worker exited with code ${code}`
+                            message: `Server worker exited with code ${code}`,
+                            timestamp: new Date()
                         }
                     }
                 });
@@ -1019,7 +1029,8 @@ const agentService = {
                         $push: {
                             logs: {
                                 level: 'info',
-                                message: `Server stopped with exit code ${code}`
+                                message: `Server stopped with exit code ${code}`,
+                                timestamp: new Date()
                             }
                         }
                     });
@@ -1040,7 +1051,8 @@ const agentService = {
                                     $push: {
                                         logs: {
                                             level: message.log.level,
-                                            message: message.log.message
+                                            message: message.log.message,
+                                            timestamp: new Date()
                                         }
                                     }
                                 });

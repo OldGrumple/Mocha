@@ -67,6 +67,15 @@ class MinecraftServerWorker {
                     await this.updateStatus();
                 }
 
+                // Check for player join/leave messages
+                if (output.includes('joined the game')) {
+                    this.playerCount++;
+                    await this.updateStatus();
+                } else if (output.includes('left the game')) {
+                    this.playerCount = Math.max(0, this.playerCount - 1);
+                    await this.updateStatus();
+                }
+
                 // Check for common error messages
                 if (output.includes('Failed to start server') || 
                     output.includes('Could not load server properties') ||
