@@ -893,29 +893,76 @@ const agentService = {
             });
 
             // Handle worker process messages
-            workerProcess.stdout.on('data', (data) => {
+            workerProcess.stdout.on('data', async (data) => {
                 try {
                     const message = JSON.parse(data.toString());
                     if (message.success) {
                         console.log(`[Worker ${serverId}] ${message.message}`);
+                        // Store log in database
+                        await Server.findByIdAndUpdate(serverId, {
+                            $push: {
+                                logs: {
+                                    level: 'info',
+                                    message: message.message
+                                }
+                            }
+                        });
                     } else {
                         console.error(`[Worker ${serverId}] Error: ${message.error}`);
+                        // Store error log in database
+                        await Server.findByIdAndUpdate(serverId, {
+                            $push: {
+                                logs: {
+                                    level: 'error',
+                                    message: message.error
+                                }
+                            }
+                        });
                     }
                 } catch (error) {
                     console.error(`[Worker ${serverId}] Error parsing message:`, error);
+                    // Store error log in database
+                    await Server.findByIdAndUpdate(serverId, {
+                        $push: {
+                            logs: {
+                                level: 'error',
+                                message: `Error parsing worker message: ${error.message}`
+                            }
+                        }
+                    });
                 }
             });
 
-            workerProcess.stderr.on('data', (data) => {
-                console.error(`[Worker ${serverId} Error] ${data}`);
+            workerProcess.stderr.on('data', async (data) => {
+                const error = data.toString();
+                console.error(`[Worker ${serverId} Error] ${error}`);
+                // Store error log in database
+                await Server.findByIdAndUpdate(serverId, {
+                    $push: {
+                        logs: {
+                            level: 'error',
+                            message: error
+                        }
+                    }
+                });
             });
 
-            workerProcess.on('exit', (code) => {
+            workerProcess.on('exit', async (code) => {
                 console.log(`Worker ${serverId} exited with code ${code}`);
                 serverInfo.worker = null;
                 serverInfo.status = 'stopped';
                 serverInfo.statusMessage = `Server stopped (exit code: ${code})`;
                 runningServers.set(serverId, serverInfo);
+
+                // Store exit log in database
+                await Server.findByIdAndUpdate(serverId, {
+                    $push: {
+                        logs: {
+                            level: 'info',
+                            message: `Server worker exited with code ${code}`
+                        }
+                    }
+                });
             });
 
             // Store the worker process

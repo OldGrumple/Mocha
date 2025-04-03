@@ -7,7 +7,7 @@ const serverSchema = new mongoose.Schema({
         trim: true
     },
     nodeId: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'Node',
         required: true
     },
@@ -62,7 +62,14 @@ const serverSchema = new mongoose.Schema({
     config: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ServerConfig'
-    }
+    },
+    logs: [{
+        timestamp: { type: Date, default: Date.now },
+        level: { type: String, enum: ['info', 'error', 'warn'], default: 'info' },
+        message: { type: String, required: true }
+    }],
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
 }, {
     timestamps: true
 });

@@ -1270,4 +1270,46 @@ router.post('/servers/:id/swap-jar', async (req, res) => {
     }
 });
 
+// Server Logs Route
+router.get('/servers/:id/logs', async (req, res) => {
+    try {
+        const server = await Server.findById(req.params.id);
+        if (!server) {
+            return res.status(404).json({ error: 'Server not found' });
+        }
+
+        // Get query parameters for filtering
+        const { level, limit = 100, before } = req.query;
+        
+        // Build query
+        let query = { serverId: server._id };
+        if (level) {
+            query['logs.level'] = level;
+        }
+        if (before) {
+            query['logs.timestamp'] = { $lt: new Date(before) };
+        }
+
+        // Get logs with pagination
+        const logs = await Server.aggregate([
+            { $match: { _id: server._id } },
+            { $unwind: '$logs' },
+            { $match: query },
+            { $sort: { 'logs.timestamp': -1 } },
+            { $limit: parseInt(limit) },
+            { $project: {
+                _id: 0,
+                timestamp: '$logs.timestamp',
+                level: '$logs.level',
+                message: '$logs.message'
+            }}
+        ]);
+
+        res.json({ logs });
+    } catch (error) {
+        console.error('Error fetching server logs:', error);
+        res.status(500).json({ error: 'Failed to fetch server logs' });
+    }
+});
+
 module.exports = router;
