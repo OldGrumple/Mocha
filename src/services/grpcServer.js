@@ -49,6 +49,9 @@ const nodeMetrics = new Map();
 // Store registered nodes
 const registeredNodes = new Map();
 
+// Store used ports
+const usedPorts = new Set();
+
 // Add these constants at the top level
 const HEARTBEAT_TIMEOUT = 120000; // 120 seconds
 const HEARTBEAT_CHECK_INTERVAL = 10000; // 10 seconds
@@ -209,6 +212,21 @@ async function verifyJarHash(sourcePath, targetPath, type, version) {
     console.error('Error verifying jar hash:', error);
     return false;
   }
+}
+
+// Function to find next available port
+async function findNextAvailablePort(startPort = 25565) {
+    let port = startPort;
+    while (usedPorts.has(port)) {
+        port++;
+    }
+    usedPorts.add(port);
+    return port;
+}
+
+// Function to release port
+function releasePort(port) {
+    usedPorts.delete(port);
 }
 
 // Implement the service methods
@@ -499,6 +517,10 @@ const agentService = {
                 return;
             }
 
+            // Find next available port
+            const port = await findNextAvailablePort(config.port || 25565);
+            config.port = port;
+
             // Store server info in runningServers map
             runningServers.set(serverId, {
                 serverId,
@@ -509,7 +531,8 @@ const agentService = {
                 progress: 0,
                 statusMessage: 'Initializing server...',
                 nodeId: nodeId,
-                apiKey: apiKey
+                apiKey: apiKey,
+                port: port
             });
 
             // Create server directory
@@ -661,7 +684,8 @@ const agentService = {
             callback(null, {
                 success: true,
                 message: 'Server provisioning started',
-                instanceId: serverId
+                instanceId: serverId,
+                port: port  // Include the allocated port in the response
             });
         } catch (error) {
             console.error('Error in ProvisionServer:', error);
@@ -1110,6 +1134,11 @@ const agentService = {
                 } catch (error) {
                     console.error(`Error killing server process for ${serverId}:`, error);
                 }
+            }
+
+            // Release the port
+            if (serverInfo && serverInfo.port) {
+                releasePort(serverInfo.port);
             }
 
             // Remove from running servers

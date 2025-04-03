@@ -92,7 +92,13 @@ class GRPCAgentService {
 
       this.client.ProvisionServer(request, this.metadata(), (err, response) => {
         if (err) reject(err);
-        else resolve(response);
+        else {
+          // Update the server config with the allocated port
+          if (response.port) {
+            serverConfig.config.port = response.port;
+          }
+          resolve(response);
+        }
       });
     });
   }

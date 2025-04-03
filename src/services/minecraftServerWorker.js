@@ -30,6 +30,16 @@ class MinecraftServerWorker {
                 throw new Error('Server start script not found');
             }
 
+            // Update server.properties with the correct port
+            const serverPropertiesPath = path.join(serverDir, 'server.properties');
+            try {
+                let properties = await fs.readFile(serverPropertiesPath, 'utf8');
+                properties = properties.replace(/server-port=\d+/, `server-port=${this.config.port}`);
+                await fs.writeFile(serverPropertiesPath, properties);
+            } catch (error) {
+                console.error('Error updating server.properties:', error);
+            }
+
             // Start the server process
             this.process = spawn(process.platform === 'win32' ? startScript : 'bash',
                 process.platform === 'win32' ? [] : [startScript], {
