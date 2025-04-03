@@ -18,7 +18,8 @@ const {
     removeOperator,
     getWhitelist,
     addToWhitelist,
-    removeFromWhitelist
+    removeFromWhitelist,
+    writeJsonFile
 } = require('../services/serverConfigFiles');
 const path = require('path');
 const { spawn } = require('child_process');

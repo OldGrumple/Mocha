@@ -192,5 +192,6 @@ module.exports = {
     removeOperator,
     getWhitelist,
     addToWhitelist,
-    removeFromWhitelist
+    removeFromWhitelist,
+    writeJsonFile
 }; 
