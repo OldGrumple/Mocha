@@ -571,8 +571,24 @@ router.delete('/servers/:id', async (req, res) => {
         const instanceId = server.instanceId || server._id.toString();
         console.log('Using instanceId for deletion:', instanceId);
 
+        // Delete server from gRPC service
         const grpcClient = new GRPCAgentService(node);
         await grpcClient.deleteServer(instanceId);
+
+        // Delete server configuration
+        await ServerConfig.deleteOne({ serverId: server._id });
+
+        // Delete local server directory
+        const serverDir = path.join(__dirname, '../servers', server._id.toString());
+        try {
+            await fsPromises.rm(serverDir, { recursive: true, force: true });
+            console.log('Deleted server directory:', serverDir);
+        } catch (error) {
+            console.error('Error deleting server directory:', error);
+            // Continue with deletion even if directory deletion fails
+        }
+
+        // Delete server from database
         await server.deleteOne();
 
         res.json({ message: 'Server deleted successfully' });
