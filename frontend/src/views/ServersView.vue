@@ -238,7 +238,6 @@ const selectedServer = ref(null)
 const error = ref(null)
 const newServer = ref({
   name: '',
-  nodeId: '',
   minecraftConfig: {
     type: '',
     version: ''
@@ -283,7 +282,6 @@ const addServer = async () => {
   try {
     const serverData = {
       name: newServer.value.name,
-      nodeId: newServer.value.nodeId,
       minecraftVersion: newServer.value.minecraftConfig.version,
       serverType: newServer.value.minecraftConfig.type
     }
@@ -292,7 +290,6 @@ const addServer = async () => {
     showAddServerModal.value = false
     newServer.value = {
       name: '',
-      nodeId: '',
       minecraftConfig: {
         type: '',
         version: ''
