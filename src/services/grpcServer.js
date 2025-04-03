@@ -1241,13 +1241,39 @@ const agentService = {
             const { instanceId, serverId, nodeId, apiKey } = call.request;
             console.log('Received get server status request:', { instanceId, serverId });
 
-            const serverInfo = runningServers.get(serverId);
-            if (!serverInfo) {
+            // First check the database status
+            const server = await Server.findById(serverId);
+            if (!server) {
                 callback({
                     code: grpc.status.NOT_FOUND,
                     message: 'Server not found'
                 });
                 return;
+            }
+
+            // Get server info from runningServers map
+            let serverInfo = runningServers.get(serverId);
+            
+            // If server is in runningServers but status doesn't match database, update runningServers
+            if (serverInfo && serverInfo.status !== server.status) {
+                console.log(`Server status mismatch detected. Database: ${server.status}, RunningServers: ${serverInfo.status}`);
+                serverInfo.status = server.status;
+                serverInfo.statusMessage = server.statusMessage || serverInfo.statusMessage;
+                serverInfo.worker = null; // Clear worker reference since status doesn't match
+                runningServers.set(serverId, serverInfo);
+            }
+
+            // If server is not in runningServers but exists in database, add it
+            if (!serverInfo) {
+                serverInfo = {
+                    serverId,
+                    status: server.status,
+                    statusMessage: server.statusMessage,
+                    worker: null,
+                    nodeId: server.nodeId,
+                    apiKey: server.apiKey
+                };
+                runningServers.set(serverId, serverInfo);
             }
 
             // Verify node and API key match

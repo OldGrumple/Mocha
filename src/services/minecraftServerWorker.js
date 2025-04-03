@@ -13,10 +13,13 @@ class MinecraftServerWorker {
         this.playerCount = 0;
         this.lastOutput = [];
         this.maxOutputLines = 100;
+        this.startAttempts = 0;
+        this.maxStartAttempts = 3;
     }
 
     async start() {
         try {
+            this.startAttempts++;
             const serverDir = path.join(__dirname, '../servers', this.serverId);
             const startScript = path.join(serverDir, process.platform === 'win32' ? 'start.bat' : 'start.sh');
 
@@ -36,6 +39,7 @@ class MinecraftServerWorker {
 
             this.status = 'starting';
             this.statusMessage = 'Starting server...';
+            await this.updateStatus();
 
             // Handle process events
             this.process.stdout.on('data', async (data) => {
@@ -49,6 +53,7 @@ class MinecraftServerWorker {
                 if (output.includes('Done') || output.includes('For help, type "help"')) {
                     this.status = 'running';
                     this.statusMessage = 'Server is running';
+                    this.startAttempts = 0; // Reset start attempts on success
                     await this.updateStatus();
                 }
 
@@ -58,21 +63,41 @@ class MinecraftServerWorker {
                     this.playerCount = parseInt(playerMatch[1]);
                     await this.updateStatus();
                 }
+
+                // Check for common error messages
+                if (output.includes('Failed to start server') || 
+                    output.includes('Could not load server properties') ||
+                    output.includes('Exception in thread "main"')) {
+                    this.status = 'error';
+                    this.statusMessage = output.split('\n')[0]; // Use first line as error message
+                    await this.updateStatus();
+                }
             });
 
-            this.process.stderr.on('data', (data) => {
+            this.process.stderr.on('data', async (data) => {
                 const error = data.toString();
                 this.lastOutput.push(`[ERROR] ${error}`);
                 if (this.lastOutput.length > this.maxOutputLines) {
                     this.lastOutput.shift();
                 }
+                
+                // Update status with error message
+                this.status = 'error';
+                this.statusMessage = error.split('\n')[0]; // Use first line as error message
+                await this.updateStatus();
             });
 
             this.process.on('exit', async (code) => {
                 this.process = null;
-                this.status = 'stopped';
+                this.status = code === 0 ? 'stopped' : 'error';
                 this.statusMessage = `Server stopped (exit code: ${code})`;
                 await this.updateStatus();
+
+                // If server failed to start and we haven't exceeded max attempts, try again
+                if (code !== 0 && this.startAttempts < this.maxStartAttempts) {
+                    console.log(`Server failed to start (attempt ${this.startAttempts}/${this.maxStartAttempts}), retrying...`);
+                    await this.start();
+                }
             });
 
             return true;
@@ -150,11 +175,22 @@ class MinecraftServerWorker {
 
     async updateStatus(message) {
         try {
+            // Update status in database
             await axios.put(`http://localhost:3000/api/servers/${this.serverId}/status`, {
                 status: this.status,
                 playerCount: this.playerCount,
                 message: message || this.statusMessage
             });
+
+            // Also send status update through stdout for gRPC server
+            process.stdout.write(JSON.stringify({
+                success: true,
+                status: {
+                    status: this.status,
+                    statusMessage: this.statusMessage,
+                    playerCount: this.playerCount
+                }
+            }) + '\n');
         } catch (error) {
             console.error('Error updating server status:', error);
         }

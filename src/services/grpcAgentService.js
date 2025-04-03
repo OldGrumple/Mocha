@@ -174,8 +174,27 @@ class GRPCAgentService {
       };
 
       this.client.GetServerStatus(request, this.metadata(), (err, response) => {
-        if (err) reject(err);
-        else resolve(response);
+        if (err) {
+          // If the error is NOT_FOUND, resolve with a stopped status
+          if (err.code === grpc.status.NOT_FOUND) {
+            resolve({
+              status: 'stopped',
+              statusMessage: 'Server not found',
+              playerCount: 0
+            });
+            return;
+          }
+          reject(err);
+          return;
+        }
+        
+        // If the response indicates the server is stopped or error, update the local state
+        if (response.status === 'stopped' || response.status === 'error') {
+          // You might want to update any local state here if needed
+          console.log(`Server ${serverId} is ${response.status}: ${response.statusMessage}`);
+        }
+        
+        resolve(response);
       });
     });
   }
