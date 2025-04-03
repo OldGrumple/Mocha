@@ -19,68 +19,123 @@
       </router-link>
     </div>
 
-    <div v-if="server" class="bg-white shadow overflow-hidden sm:rounded-lg">
-      <div class="px-4 py-5 sm:px-6">
-        <div class="flex justify-between items-center">
-          <div>
-            <h3 class="text-lg leading-6 font-medium text-gray-900">
-              {{ server.name }}
-            </h3>
-            <p class="mt-1 max-w-2xl text-sm text-gray-500">
-              Running on {{ server.nodeId.name }}
-            </p>
+    <div v-if="server" class="space-y-6">
+      <!-- Server Header -->
+      <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+          <div class="flex justify-between items-center">
+            <div>
+              <h3 class="text-lg leading-6 font-medium text-gray-900">
+                {{ server.name }}
+              </h3>
+              <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                Running on {{ server.nodeId.name }}
+              </p>
+            </div>
+            <div class="flex space-x-3">
+              <button
+                v-if="server.status === 'stopped'"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                @click="startServer"
+              >
+                Start Server
+              </button>
+              <button
+                v-if="server.status === 'running'"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                @click="stopServer"
+              >
+                Stop Server
+              </button>
+              <button
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                @click="navigateToConfig"
+              >
+                Configure Server
+              </button>
+            </div>
           </div>
-          <div class="flex space-x-3">
-            <button
-              v-if="server.status === 'stopped'"
-              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-              @click="startServer"
-            >
-              Start Server
-            </button>
-            <button
-              v-if="server.status === 'running'"
-              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              @click="stopServer"
-            >
-              Stop Server
-            </button>
-            <button
-              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              @click="navigateToConfig"
-            >
-              Configure Server
-            </button>
-          </div>
+        </div>
+
+        <div class="border-t border-gray-200">
+          <dl>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">Status</dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <span :class="getStatusClass(server.status)">{{ server.status }}</span>
+              </dd>
+            </div>
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">Minecraft Version</dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {{ server.minecraftVersion }}
+              </dd>
+            </div>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">Plugins</dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <ul v-if="server.plugins && server.plugins.length > 0" class="list-disc list-inside">
+                  <li v-for="(plugin, index) in server.plugins" :key="index">
+                    {{ plugin.name }} (v{{ plugin.version }})
+                  </li>
+                </ul>
+                <span v-else class="text-gray-500">No plugins installed</span>
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
 
-      <div class="border-t border-gray-200">
-        <dl>
-          <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Status</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              <span :class="getStatusClass(server.status)">{{ server.status }}</span>
-            </dd>
+      <!-- Tabs -->
+      <div class="bg-white shadow">
+        <div class="border-b border-gray-200">
+          <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+            <button
+              v-for="tab in tabs"
+              :key="tab.name"
+              @click="currentTab = tab.name"
+              :class="[
+                currentTab === tab.name
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
+              ]"
+            >
+              {{ tab.label }}
+            </button>
+          </nav>
+        </div>
+        <div class="p-6">
+          <!-- Overview Tab -->
+          <div v-if="currentTab === 'overview'" class="space-y-4">
+            <div class="bg-gray-50 rounded-lg p-4">
+              <h4 class="text-sm font-medium text-gray-900 mb-2">Server Information</h4>
+              <dl class="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                <div>
+                  <dt class="text-sm font-medium text-gray-500">Server Type</dt>
+                  <dd class="mt-1 text-sm text-gray-900">{{ server.serverType }}</dd>
+                </div>
+                <div>
+                  <dt class="text-sm font-medium text-gray-500">Player Count</dt>
+                  <dd class="mt-1 text-sm text-gray-900">{{ server.playerCount || 0 }} / {{ server.config?.maxPlayers || 20 }}</dd>
+                </div>
+                <div>
+                  <dt class="text-sm font-medium text-gray-500">Difficulty</dt>
+                  <dd class="mt-1 text-sm text-gray-900">{{ server.config?.difficulty || 'normal' }}</dd>
+                </div>
+                <div>
+                  <dt class="text-sm font-medium text-gray-500">Game Mode</dt>
+                  <dd class="mt-1 text-sm text-gray-900">{{ server.config?.gameMode || 'survival' }}</dd>
+                </div>
+              </dl>
+            </div>
           </div>
-          <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Minecraft Version</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              {{ server.minecraftVersion }}
-            </dd>
+
+          <!-- Logs Tab -->
+          <div v-if="currentTab === 'logs'">
+            <ServerLogs :serverId="server._id" />
           </div>
-          <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Plugins</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              <ul v-if="server.plugins && server.plugins.length > 0" class="list-disc list-inside">
-                <li v-for="(plugin, index) in server.plugins" :key="index">
-                  {{ plugin.name }} (v{{ plugin.version }})
-                </li>
-              </ul>
-              <span v-else class="text-gray-500">No plugins installed</span>
-            </dd>
-          </div>
-        </dl>
+        </div>
       </div>
     </div>
 
@@ -94,10 +149,17 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
+import ServerLogs from '../components/ServerLogs.vue'
 
 const route = useRoute()
 const router = useRouter()
 const server = ref(null)
+const currentTab = ref('overview')
+
+const tabs = [
+  { name: 'overview', label: 'Overview' },
+  { name: 'logs', label: 'Logs' }
+]
 
 const fetchServer = async () => {
   try {
