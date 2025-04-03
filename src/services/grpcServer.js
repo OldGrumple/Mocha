@@ -1174,11 +1174,10 @@ const agentService = {
 
             // If server is running, get status from worker
             if (serverInfo.worker) {
-                serverInfo.worker.stdin.write(JSON.stringify({ command: 'status' }) + '\n');
-                
-                // Wait for status response
+                // Create a promise to handle the status response
                 const statusPromise = new Promise((resolve) => {
                     const timeout = setTimeout(() => {
+                        console.log(`Status request timed out for server ${serverId}`);
                         resolve({
                             status: serverInfo.status,
                             statusMessage: serverInfo.statusMessage,
@@ -1186,13 +1185,19 @@ const agentService = {
                         });
                     }, 5000);
 
-                    serverInfo.worker.stdout.once('data', (data) => {
-                        clearTimeout(timeout);
+                    // Handle worker output
+                    const handleOutput = (data) => {
                         try {
-                            const message = JSON.parse(data.toString());
-                            if (message.success) {
-                                resolve(message.status);
+                            const message = data.toString().trim();
+                            console.log(`[Worker ${serverId}] Raw output:`, message);
+                            
+                            // Try to parse as JSON
+                            const parsedMessage = JSON.parse(message);
+                            if (parsedMessage.success) {
+                                clearTimeout(timeout);
+                                resolve(parsedMessage.status);
                             } else {
+                                console.error(`[Worker ${serverId}] Error in status response:`, parsedMessage.error);
                                 resolve({
                                     status: serverInfo.status,
                                     statusMessage: serverInfo.statusMessage,
@@ -1200,15 +1205,24 @@ const agentService = {
                                 });
                             }
                         } catch (error) {
+                            console.error(`[Worker ${serverId}] Error parsing message:`, error);
+                            console.error(`[Worker ${serverId}] Raw message:`, message);
                             resolve({
                                 status: serverInfo.status,
                                 statusMessage: serverInfo.statusMessage,
                                 playerCount: 0
                             });
                         }
-                    });
+                    };
+
+                    // Set up one-time listener for the response
+                    serverInfo.worker.stdout.once('data', handleOutput);
                 });
 
+                // Send status request to worker
+                serverInfo.worker.stdin.write(JSON.stringify({ command: 'status' }) + '\n');
+
+                // Wait for status response
                 const status = await statusPromise;
                 callback(null, status);
             } else {
