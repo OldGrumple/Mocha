@@ -984,8 +984,12 @@ router.get('/minecraft/versions/:type', async (req, res) => {
 router.post('/minecraft/download', async (req, res) => {
     try {
         const { type, version } = req.body;
-        const filePath = await minecraftService.downloadServer(type, version);
-        res.download(filePath);
+        await minecraftService.downloadServer(type, version);
+        res.json({ 
+            message: 'Server jar downloaded successfully',
+            type,
+            version
+        });
     } catch (error) {
         console.error('Error downloading server:', error);
         res.status(500).json({ error: 'Failed to download server' });
