@@ -300,7 +300,7 @@ router.post('/servers', async (req, res) => {
 
 router.post('/servers/:id/start', async (req, res) => {
     try {
-        const server = await Server.findById(req.params.id).populate('nodeId');
+        const server = await Server.findById(req.params.id).populate('nodeId').populate('config');
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
         }
@@ -321,12 +321,22 @@ router.post('/servers/:id/start', async (req, res) => {
             console.log('Server not provisioned, provisioning first...');
             const grpcClient = new GRPCAgentService(node);
             const serverConfig = {
-                name: server.name,
-                minecraftVersion: server.minecraftVersion,
-                nodeId: node._id,
-                serverId: server._id.toString(),
-                apiKey: node.apiKey,
-                serverType: server.serverType
+                server_id: server._id.toString(),
+                minecraft_version: server.minecraftVersion,
+                config: {
+                    server_name: server.name,
+                    server_type: server.serverType,
+                    max_players: server.config?.maxPlayers || 20,
+                    difficulty: server.config?.difficulty || 'normal',
+                    game_mode: server.config?.gameMode || 'survival',
+                    view_distance: server.config?.viewDistance || 10,
+                    spawn_protection: server.config?.spawnProtection || 16,
+                    seed: server.config?.seed || '',
+                    world_type: server.config?.worldType || 'default',
+                    generate_structures: server.config?.generateStructures !== false,
+                    memory: server.config?.memory || 2,
+                    port: server.config?.port || 25565
+                }
             };
 
             const provisionResponse = await grpcClient.provisionServer(serverConfig);
