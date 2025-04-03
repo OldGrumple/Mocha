@@ -182,7 +182,7 @@ router.post('/servers', async (req, res) => {
             name: req.body.name,
             minecraftVersion: req.body.minecraftVersion,
             serverType: req.body.serverType,
-            nodeId: selectedNode._id, // This is already a MongoDB ObjectId
+            nodeId: selectedNode._id, // This is already a MongoDB ObjectId from the database query
             status: 'creating',
             statusMessage: 'Initializing server...'
         });

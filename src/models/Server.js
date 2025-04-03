@@ -7,7 +7,7 @@ const serverSchema = new mongoose.Schema({
         trim: true
     },
     nodeId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: String,
         ref: 'Node',
         required: true
     },
