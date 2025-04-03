@@ -1,269 +1,208 @@
 <template>
-  <div class="container mx-auto px-4 py-8">
-    <!-- Loading State -->
-    <div v-if="loading" class="flex justify-center items-center h-64">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="mb-8">
+      <router-link
+        to="/servers"
+        class="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
+      >
+        <svg class="w-4 h-4 mr-2" 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24">
+          <path 
+          stroke-linecap="round" 
+          stroke-linejoin="round" 
+          stroke-width="2" 
+          d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back to Servers
+      </router-link>
     </div>
 
-    <!-- Error State -->
-    <div v-else-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-      <strong class="font-bold">Error!</strong>
-      <span class="block sm:inline"> {{ error }}</span>
-    </div>
-
-    <!-- Server Content -->
-    <div v-else-if="server" class="bg-white rounded-lg shadow-lg p-6">
-      <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold">{{ server.name }}</h1>
-        <div class="flex gap-2">
-          <ServerJarSwap
-            :server-id="server._id"
-            :current-type="server.serverType"
-            :current-version="server.minecraftVersion"
-            @jar-swapped="handleJarSwapped"
-          />
-          <ServerControlButtons
-            :server-status="server.status"
-            :is-starting="isStarting"
-            :is-stopping="isStopping"
-            :is-restarting="isRestarting"
-            @start="startServer"
-            @stop="stopServer"
-            @restart="restartServer"
-          />
+    <div v-if="server" class="space-y-6">
+      <!-- Server Header -->
+      <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+          <div class="flex justify-between items-center">
+            <div>
+              <h3 class="text-lg leading-6 font-medium text-gray-900">
+                {{ server.name }}
+              </h3>
+              <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                Running on {{ server.nodeId.name }}
+              </p>
+            </div>
+            <div class="flex space-x-3">
+              <button
+                v-if="server.status === 'stopped'"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                @click="startServer"
+              >
+                Start Server
+              </button>
+              <button
+                v-if="server.status === 'running'"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                @click="stopServer"
+              >
+                Stop Server
+              </button>
+              <button
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                @click="navigateToConfig"
+              >
+                Configure Server
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- Server Status -->
-      <div class="mb-6">
-        <h2 class="text-lg font-semibold mb-2">Server Status</h2>
-        <div class="flex items-center gap-2">
-          <span
-            :class="{
-              'bg-green-100 text-green-800': server.status === 'running',
-              'bg-red-100 text-red-800': server.status === 'stopped',
-              'bg-yellow-100 text-yellow-800': ['provisioning', 'provisioning_setup', 'provisioning_download', 'provisioning_config', 'starting', 'stopping'].includes(server.status),
-              'bg-blue-100 text-blue-800': server.status === 'provisioned',
-              'bg-gray-100 text-gray-800': server.status === 'error'
-            }"
-            class="px-2 py-1 rounded-full text-sm font-medium"
-          >
-            {{ server.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }}
-          </span>
-          <span v-if="server.playerCount !== undefined" class="text-gray-600">
-            Players: {{ server.playerCount }}
-          </span>
-        </div>
-        <p v-if="server.statusMessage" class="mt-1 text-sm text-gray-600">
-          {{ server.statusMessage }}
-        </p>
-      </div>
-
-      <!-- Server Details -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div>
-          <h2 class="text-lg font-semibold mb-2">Server Details</h2>
-          <dl class="grid grid-cols-2 gap-2">
-            <dt class="text-gray-600">Type:</dt>
-            <dd>{{ server.serverType }}</dd>
-            <dt class="text-gray-600">Version:</dt>
-            <dd>{{ server.minecraftVersion }}</dd>
-            <dt class="text-gray-600">Node:</dt>
-            <dd>{{ server.nodeId?.name || 'Unknown' }}</dd>
+        <div class="border-t border-gray-200">
+          <dl>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">Status</dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <span :class="getStatusClass(server.status)">{{ server.status }}</span>
+              </dd>
+            </div>
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">Minecraft Version</dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                {{ server.minecraftVersion }}
+              </dd>
+            </div>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">Plugins</dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                <ul v-if="server.plugins && server.plugins.length > 0" class="list-disc list-inside">
+                  <li v-for="(plugin, index) in server.plugins" :key="index">
+                    {{ plugin.name }} (v{{ plugin.version }})
+                  </li>
+                </ul>
+                <span v-else class="text-gray-500">No plugins installed</span>
+              </dd>
+            </div>
           </dl>
         </div>
-        <div>
-          <h2 class="text-lg font-semibold mb-2">Actions</h2>
-          <div class="flex gap-2">
+      </div>
+
+      <!-- Tabs -->
+      <div class="bg-white shadow">
+        <div class="border-b border-gray-200">
+          <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
             <button
-              @click="navigateToConfig"
-              class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+              v-for="tab in tabs"
+              :key="tab.name"
+              @click="currentTab = tab.name"
+              :class="[
+                currentTab === tab.name
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm'
+              ]"
             >
-              Configure Server
+              {{ tab.label }}
             </button>
+          </nav>
+        </div>
+        <div class="p-6">
+          <!-- Overview Tab -->
+          <div v-if="currentTab === 'overview'" class="space-y-4">
+            <div class="bg-gray-50 rounded-lg p-4">
+              <h4 class="text-sm font-medium text-gray-900 mb-2">Server Information</h4>
+              <dl class="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                <div>
+                  <dt class="text-sm font-medium text-gray-500">Server Type</dt>
+                  <dd class="mt-1 text-sm text-gray-900">{{ server.serverType }}</dd>
+                </div>
+                <div>
+                  <dt class="text-sm font-medium text-gray-500">Player Count</dt>
+                  <dd class="mt-1 text-sm text-gray-900">{{ server.playerCount || 0 }} / {{ server.config?.maxPlayers || 20 }}</dd>
+                </div>
+                <div>
+                  <dt class="text-sm font-medium text-gray-500">Difficulty</dt>
+                  <dd class="mt-1 text-sm text-gray-900">{{ server.config?.difficulty || 'normal' }}</dd>
+                </div>
+                <div>
+                  <dt class="text-sm font-medium text-gray-500">Game Mode</dt>
+                  <dd class="mt-1 text-sm text-gray-900">{{ server.config?.gameMode || 'survival' }}</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          <!-- Logs Tab -->
+          <div v-if="currentTab === 'logs'">
+            <ServerLogs :serverId="server._id" />
           </div>
         </div>
       </div>
-
-      <!-- Server Configuration Files -->
-      <ServerConfigFiles
-      />
-
-      <!-- Provisioning Status -->
-      <ServerProvisioningStatus
-        v-if="server && (server.status === 'provisioning' || server.status === 'jar_swap_in_progress')"
-        :server="server"
-      />
     </div>
 
-    <!-- No Server Found -->
     <div v-else class="text-center py-12">
-      <h2 class="text-xl font-semibold text-gray-900">Server not found</h2>
-      <p class="mt-2 text-gray-600">The server you're looking for doesn't exist or has been deleted.</p>
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
     </div>
   </div>
 </template>
 
-<script>
-import { ref, onMounted, onUnmounted } from 'vue'
+<script setup>
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-import ServerProvisioningStatus from '@/components/ServerProvisioningStatus.vue'
-import ServerJarSwap from '../components/ServerJarSwap.vue'
-import ServerControlButtons from '../components/ServerControlButtons.vue'
-import ServerConfigFiles from '../components/ServerConfigFiles.vue'
+import ServerLogs from '../components/ServerLogs.vue'
 
-export default {
-  name: 'ServerDetail',
+const route = useRoute()
+const router = useRouter()
+const server = ref(null)
+const currentTab = ref('overview')
 
-  components: {
-    ServerProvisioningStatus,
-    ServerJarSwap,
-    ServerControlButtons,
-    ServerConfigFiles
-  },
+const tabs = [
+  { name: 'overview', label: 'Overview' },
+  { name: 'logs', label: 'Logs' }
+]
 
-  setup() {
-    const route = useRoute()
-    const router = useRouter()
-    const server = ref(null)
-    const loading = ref(true)
-    const error = ref(null)
-    const isStarting = ref(false)
-    const isStopping = ref(false)
-    const isRestarting = ref(false)
-    let statusPollInterval = null
-
-    const fetchServer = async () => {
-      try {
-        loading.value = true
-        error.value = null
-        const response = await axios.get(`/api/servers/${route.params.id}`)
-        if (!server.value || server.value.status !== response.data.server.status) {
-          console.log('Server status updated:', response.data.server.status)
-        }
-        server.value = response.data.server
-      } catch (err) {
-        console.error('Error fetching server:', err)
-        error.value = err.response?.data?.error || 'Failed to fetch server details'
-      } finally {
-        loading.value = false
-      }
-    }
-
-    const startServer = async () => {
-      try {
-        isStarting.value = true
-        error.value = null
-        await axios.post(`/api/servers/${route.params.id}/start`)
-        statusPollInterval && clearInterval(statusPollInterval)
-        statusPollInterval = setInterval(fetchServer, 2000)
-        server.value = {
-          ...server.value,
-          status: 'starting',
-          statusMessage: 'Starting server...'
-        }
-        let attempts = 0
-        const maxAttempts = 30
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 2000))
-          const statusResponse = await axios.get(`/api/servers/${route.params.id}`)
-          const currentStatus = statusResponse.data.server.status
-          if (currentStatus === 'running') break
-          if (currentStatus === 'stopped' || currentStatus === 'failed') {
-            throw new Error('Server failed to start')
-          }
-          attempts++
-        }
-        if (attempts >= maxAttempts) throw new Error('Server start timed out')
-        await fetchServer()
-      } catch (err) {
-        console.error('Error starting server:', err)
-        error.value = err.response?.data?.error || err.message || 'Failed to start server'
-        if (server.value) {
-          server.value.status = 'stopped'
-          server.value.statusMessage = 'Failed to start server'
-        }
-      } finally {
-        isStarting.value = false
-        statusPollInterval && clearInterval(statusPollInterval)
-        statusPollInterval = setInterval(fetchServer, 5000)
-      }
-    }
-
-    const stopServer = async () => {
-      try {
-        isStopping.value = true
-        error.value = null
-        await axios.post(`/api/servers/${route.params.id}/stop`)
-        await fetchServer()
-      } catch (err) {
-        error.value = err.response?.data?.error || 'Failed to stop server'
-        console.error('Error stopping server:', err)
-      } finally {
-        isStopping.value = false
-      }
-    }
-
-    const restartServer = async () => {
-      try {
-        isRestarting.value = true
-        error.value = null
-        await axios.post(`/api/servers/${route.params.id}/stop`)
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        await axios.post(`/api/servers/${route.params.id}/start`)
-        await fetchServer()
-      } catch (err) {
-        error.value = err.response?.data?.error || 'Failed to restart server'
-        console.error('Error restarting server:', err)
-      } finally {
-        isRestarting.value = false
-      }
-    }
-
-    const navigateToConfig = () => {
-      router.push(`/servers/${route.params.id}/config`)
-    }
-
-    const handleJarSwapped = (updatedServer) => {
-      server.value = updatedServer
-    }
-
-    const startStatusPolling = () => {
-      if (server.value?.status === 'running' || server.value?.status === 'provisioning') {
-        statusPollInterval = setInterval(fetchServer, 5000)
-      }
-    }
-
-    const stopStatusPolling = () => {
-      if (statusPollInterval) {
-        clearInterval(statusPollInterval)
-        statusPollInterval = null
-      }
-    }
-
-    onMounted(async () => {
-      await fetchServer()
-      startStatusPolling()
-    })
-
-    onUnmounted(() => {
-      stopStatusPolling()
-    })
-
-    return {
-      server,
-      loading,
-      error,
-      isStarting,
-      isStopping,
-      isRestarting,
-      startServer,
-      stopServer,
-      restartServer,
-      navigateToConfig,
-      handleJarSwapped
-    }
+const fetchServer = async () => {
+  try {
+    const response = await axios.get(`/api/servers/${route.params.id}`)
+    server.value = response.data.server
+  } catch (error) {
+    console.error('Error fetching server:', error)
   }
 }
-</script>
+
+const startServer = async () => {
+  try {
+    await axios.post(`/api/servers/${server.value._id}/start`)
+    server.value.status = 'running'
+  } catch (error) {
+    console.error('Error starting server:', error)
+  }
+}
+
+const stopServer = async () => {
+  try {
+    await axios.post(`/api/servers/${server.value._id}/stop`)
+    server.value.status = 'stopped'
+  } catch (error) {
+    console.error('Error stopping server:', error)
+  }
+}
+
+const navigateToConfig = () => {
+  router.push(`/servers/${server.value._id}/config`)
+}
+
+const getStatusClass = (status) => {
+  const classes = {
+    running: 'text-green-600',
+    stopped: 'text-red-600',
+    starting: 'text-yellow-600',
+    stopping: 'text-yellow-600'
+  }
+  return classes[status] || 'text-gray-600'
+}
+
+onMounted(() => {
+  fetchServer()
+})
+</script> 
