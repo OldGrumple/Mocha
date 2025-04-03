@@ -182,10 +182,21 @@ router.post('/servers', async (req, res) => {
             name: req.body.name,
             minecraftVersion: req.body.minecraftVersion,
             serverType: req.body.serverType,
-            nodeId: selectedNode._id,
+            nodeId: selectedNode._id, // This is already a MongoDB ObjectId
             status: 'creating',
             statusMessage: 'Initializing server...'
         });
+
+        // Validate the server document before saving
+        const validationError = newServer.validateSync();
+        if (validationError) {
+            console.error('Server validation error:', validationError);
+            return res.status(400).json({ 
+                error: 'Server validation failed',
+                details: validationError.errors
+            });
+        }
+
         await newServer.save();
         console.log('Created server in database:', newServer._id);
 
