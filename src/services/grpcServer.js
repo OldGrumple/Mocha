@@ -921,6 +921,11 @@ const agentService = {
                                 }
                             }
                         });
+                        // Update server status to error
+                        serverInfo.status = 'error';
+                        serverInfo.statusMessage = parsedMessage.error || 'Server failed to start';
+                        serverInfo.worker = null;
+                        runningServers.set(serverId, serverInfo);
                     }
                 } catch (error) {
                     console.error(`[Worker ${serverId}] Error parsing message:`, error);
@@ -949,12 +954,17 @@ const agentService = {
                         }
                     }
                 });
+                // Update server status to error
+                serverInfo.status = 'error';
+                serverInfo.statusMessage = error;
+                serverInfo.worker = null;
+                runningServers.set(serverId, serverInfo);
             });
 
             workerProcess.on('exit', async (code) => {
                 console.log(`Worker ${serverId} exited with code ${code}`);
                 serverInfo.worker = null;
-                serverInfo.status = 'stopped';
+                serverInfo.status = code === 0 ? 'stopped' : 'error';
                 serverInfo.statusMessage = `Server stopped (exit code: ${code})`;
                 runningServers.set(serverId, serverInfo);
 
@@ -982,6 +992,14 @@ const agentService = {
             const startPromise = new Promise((resolve) => {
                 const timeout = setTimeout(() => {
                     console.log(`Start command timed out for server ${serverId}`);
+                    // Kill the worker process on timeout
+                    if (workerProcess) {
+                        workerProcess.kill('SIGKILL');
+                        serverInfo.worker = null;
+                        serverInfo.status = 'error';
+                        serverInfo.statusMessage = 'Server start timed out';
+                        runningServers.set(serverId, serverInfo);
+                    }
                     resolve(false);
                 }, 30000); // 30 second timeout
 
@@ -995,10 +1013,26 @@ const agentService = {
                             resolve(true);
                         } else {
                             console.error(`[Worker ${serverId}] Start failed:`, parsedMessage.error);
+                            // Kill the worker process on failure
+                            if (workerProcess) {
+                                workerProcess.kill('SIGKILL');
+                                serverInfo.worker = null;
+                                serverInfo.status = 'error';
+                                serverInfo.statusMessage = parsedMessage.error || 'Server failed to start';
+                                runningServers.set(serverId, serverInfo);
+                            }
                             resolve(false);
                         }
                     } catch (error) {
                         console.error(`[Worker ${serverId}] Error parsing start response:`, error);
+                        // Kill the worker process on parsing error
+                        if (workerProcess) {
+                            workerProcess.kill('SIGKILL');
+                            serverInfo.worker = null;
+                            serverInfo.status = 'error';
+                            serverInfo.statusMessage = 'Failed to parse server start response';
+                            runningServers.set(serverId, serverInfo);
+                        }
                         resolve(false);
                     }
                 };
@@ -1010,6 +1044,7 @@ const agentService = {
             if (!started) {
                 serverInfo.status = 'error';
                 serverInfo.statusMessage = 'Failed to start server';
+                serverInfo.worker = null;
                 runningServers.set(serverId, serverInfo);
                 callback({
                     code: grpc.status.INTERNAL,
@@ -1024,6 +1059,14 @@ const agentService = {
             });
         } catch (error) {
             console.error('Error in StartServer:', error);
+            // Clean up on error
+            if (serverInfo && serverInfo.worker) {
+                serverInfo.worker.kill('SIGKILL');
+                serverInfo.worker = null;
+                serverInfo.status = 'error';
+                serverInfo.statusMessage = error.message;
+                runningServers.set(serverId, serverInfo);
+            }
             callback({
                 code: grpc.status.INTERNAL,
                 message: 'Failed to start server'
