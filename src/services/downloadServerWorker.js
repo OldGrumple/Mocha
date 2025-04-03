@@ -8,20 +8,17 @@ const mongoose = require('mongoose');
 const { createStartScript } = require('./grpcServer');
 require('dotenv').config();
 
-(async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    console.log('✅ MongoDB connected in download worker');
-
-    await downloadServer();
-  } catch (err) {
-    console.error('❌ MongoDB connection error in worker:', err);
-    process.exit(1);
-  }
-})();
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => {
+  console.log('✅ MongoDB connected in download worker');
+  downloadServer();
+}).catch(err => {
+  console.error('❌ MongoDB connection error in worker:', err);
+  process.exit(1);
+});
 
 async function writeProgress(serverId, progress, status, message) {
   const progressPath = path.join(__dirname, '../servers', serverId, 'download_progress.json');
