@@ -1273,6 +1273,11 @@ router.post('/servers/:id/swap-jar', async (req, res) => {
 // Server Logs Route
 router.get('/servers/:id/logs', async (req, res) => {
     try {
+        // Validate server ID format
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid server ID format' });
+        }
+
         const server = await Server.findById(req.params.id);
         if (!server) {
             return res.status(404).json({ error: 'Server not found' });
