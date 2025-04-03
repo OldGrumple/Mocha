@@ -1,34 +1,38 @@
-const fs = require('fs').promises;
 const path = require('path');
-const { createStartScript } = require('./grpcServer');
+const fs = require('fs').promises;
+const { createStartScript } = require('./serverUtils');
 
-async function updateStartupScripts(serverDir, config) {
+async function updateStartupScripts() {
     try {
-        // Use the proper createStartScript function from grpcServer.js
+        const [,, serverId, configJson] = process.argv;
+        if (!serverId || !configJson) {
+            throw new Error('Missing required arguments: serverId and configJson');
+        }
+
+        const config = JSON.parse(configJson);
+        const serverDir = path.join(__dirname, '../servers', serverId);
+
+        // Check if server directory exists
+        try {
+            await fs.access(serverDir);
+        } catch (error) {
+            throw new Error(`Server directory not found: ${serverDir}`);
+        }
+
+        // Update the start scripts
         await createStartScript(serverDir, config);
-        console.log('Startup scripts updated successfully');
+        console.log('✅ Startup scripts updated successfully');
         process.exit(0);
+
     } catch (error) {
-        console.error('Error updating startup scripts:', error);
+        console.error('❌ Error updating startup scripts:', error);
         process.exit(1);
     }
 }
 
-// Handle command line arguments
+// Run the update function if this file is executed directly
 if (require.main === module) {
-    const [serverDir, configJson] = process.argv.slice(2);
-    if (!serverDir || !configJson) {
-        console.error('Missing required arguments: serverDir and configJson');
-        process.exit(1);
-    }
-
-    try {
-        const config = JSON.parse(configJson);
-        updateStartupScripts(serverDir, config);
-    } catch (error) {
-        console.error('Error parsing config:', error);
-        process.exit(1);
-    }
+    updateStartupScripts();
 }
 
 module.exports = {
