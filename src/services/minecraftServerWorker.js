@@ -49,6 +49,9 @@ class MinecraftServerWorker {
                     this.lastOutput.shift();
                 }
 
+                // Save server output to database
+                await this.saveLog('info', output);
+
                 // Check for successful start
                 if (output.includes('Done') || output.includes('For help, type "help"')) {
                     this.status = 'running';
@@ -81,6 +84,9 @@ class MinecraftServerWorker {
                     this.lastOutput.shift();
                 }
                 
+                // Save error to database
+                await this.saveLog('error', error);
+                
                 // Update status with error message
                 this.status = 'error';
                 this.statusMessage = error.split('\n')[0]; // Use first line as error message
@@ -92,6 +98,9 @@ class MinecraftServerWorker {
                 this.status = code === 0 ? 'stopped' : 'error';
                 this.statusMessage = `Server stopped (exit code: ${code})`;
                 await this.updateStatus();
+
+                // Save exit log to database
+                await this.saveLog('info', `Server stopped (exit code: ${code})`);
 
                 // If server failed to start and we haven't exceeded max attempts, try again
                 if (code !== 0 && this.startAttempts < this.maxStartAttempts) {
@@ -171,6 +180,21 @@ class MinecraftServerWorker {
             playerCount: this.playerCount,
             lastOutput: this.lastOutput
         };
+    }
+
+    async saveLog(level, message) {
+        try {
+            // Send log to gRPC server through stdout
+            process.stdout.write(JSON.stringify({
+                success: true,
+                log: {
+                    level,
+                    message: message.trim()
+                }
+            }) + '\n');
+        } catch (error) {
+            console.error('Error saving log:', error);
+        }
     }
 
     async updateStatus(message) {

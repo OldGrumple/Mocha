@@ -1328,20 +1328,21 @@ router.get('/servers/:id/logs', async (req, res) => {
         // Get query parameters for filtering
         const { level, limit = 100, before } = req.query;
         
-        // Build query
-        let query = { serverId: server._id };
+        // Build match conditions for logs array
+        let matchConditions = {};
         if (level) {
-            query['logs.level'] = level;
+            matchConditions['level'] = level;
         }
         if (before) {
-            query['logs.timestamp'] = { $lt: new Date(before) };
+            matchConditions['timestamp'] = { $lt: new Date(before) };
         }
 
-        // Get logs with pagination
+        // Get logs with pagination and filtering
         const logs = await Server.aggregate([
             { $match: { _id: server._id } },
+            { $project: { logs: 1 } },
             { $unwind: '$logs' },
-            { $match: query },
+            { $match: matchConditions },
             { $sort: { 'logs.timestamp': -1 } },
             { $limit: parseInt(limit) },
             { $project: {

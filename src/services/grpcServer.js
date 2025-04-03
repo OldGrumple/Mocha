@@ -724,16 +724,36 @@ const agentService = {
                     
                     const parsedMessage = JSON.parse(rawMessage);
                     if (parsedMessage.success) {
-                        console.log(`[Worker ${serverId}] ${parsedMessage.message}`);
-                        // Store log in database
-                        await Server.findByIdAndUpdate(serverId, {
-                            $push: {
-                                logs: {
-                                    level: 'info',
-                                    message: parsedMessage.message
+                        if (parsedMessage.log) {
+                            // Handle log message
+                            console.log(`[Worker ${serverId}] Log:`, parsedMessage.log);
+                            await Server.findByIdAndUpdate(serverId, {
+                                $push: {
+                                    logs: {
+                                        level: parsedMessage.log.level,
+                                        message: parsedMessage.log.message
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        } else if (parsedMessage.status) {
+                            // Handle status update
+                            console.log(`[Worker ${serverId}] Status:`, parsedMessage.status);
+                            serverInfo.status = parsedMessage.status.status;
+                            serverInfo.statusMessage = parsedMessage.status.statusMessage;
+                            serverInfo.playerCount = parsedMessage.status.playerCount;
+                            runningServers.set(serverId, serverInfo);
+                        } else if (parsedMessage.message) {
+                            // Handle general success message
+                            console.log(`[Worker ${serverId}] ${parsedMessage.message}`);
+                            await Server.findByIdAndUpdate(serverId, {
+                                $push: {
+                                    logs: {
+                                        level: 'info',
+                                        message: parsedMessage.message
+                                    }
+                                }
+                            });
+                        }
                     } else {
                         console.error(`[Worker ${serverId}] Error:`, parsedMessage.error);
                         // Store error log in database
