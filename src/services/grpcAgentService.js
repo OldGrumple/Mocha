@@ -70,7 +70,9 @@ class GRPCAgentService {
             ...serverConfig.config,
             port: serverConfig.config.port || 25565 // Ensure port is included in the config
           },
-          plugins: serverConfig.plugins || []
+          plugins: serverConfig.plugins || [],
+          nodeId: this.node._id,
+          apiKey: this.node.apiKey
         },
         this.metadata(),
         (error, response) => {
