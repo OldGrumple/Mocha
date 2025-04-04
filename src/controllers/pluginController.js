@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const Server = require('../models/Server');
 const SpigetAPI = require('spiget-api').default;
+const { Plugin } = require('../models/plugin');
 
 // Initialize Spiget API client with an agent name
 const spiget = new SpigetAPI("MochaPluginManager");
@@ -14,52 +15,52 @@ const spiget = new SpigetAPI("MochaPluginManager");
  */
 exports.getAvailablePlugins = async (req, res) => {
   try {
-    const { search, page = 1, size = 20 } = req.query;
-    
-    let plugins;
-    let total;
-    
-    // Use the appropriate method based on whether a search term is provided
-    if (search) {
-      const searchResults = await spiget.search('resource', {
-        query: search,
-        page: parseInt(page),
-        size: parseInt(size),
-        sort: '-downloads'
-      });
-      plugins = searchResults.data;
-      total = searchResults.total;
-    } else {
-      const resources = await spiget.getResources({
-        page: parseInt(page),
-        size: parseInt(size),
-        sort: '-downloads'
-      });
-      plugins = resources.data;
-      total = resources.total;
+    const { search = '', page = 1, limit = 10 } = req.query;
+    const { serverId } = req.params;
+
+    // Validate serverId
+    const server = await Server.findById(serverId);
+    if (!server) {
+      return res.status(404).json({ message: 'Server not found' });
     }
-    
-    // Transform the response to match our expected format
-    const formattedPlugins = plugins.map(plugin => ({
-      id: plugin.id,
-      name: plugin.name,
-      description: plugin.description || 'No description available',
-      version: plugin.version?.name || 'Unknown',
-      downloads: plugin.downloads || 0,
-      rating: plugin.rating?.average || 0,
-      updatedAt: plugin.updateDate || plugin.date,
-      downloadUrl: `https://api.spiget.org/v2/resources/${plugin.id}/download`
+
+    const options = {
+      query: search,
+      size: parseInt(limit),
+      page: parseInt(page) - 1, // Spiget uses 0-based pagination
+      sort: '-downloads' // Sort by downloads in descending order
+    };
+
+    const resources = await spiget.search('resource', options);
+    if (!resources) {
+      return res.status(404).json({ message: 'No plugins found' });
+    }
+
+    // Get list of installed plugins for this server
+    const installedPlugins = await Plugin.find({ serverId });
+    const installedPluginIds = new Set(installedPlugins.map(p => p.spigetId));
+
+    const plugins = resources.map(resource => ({
+      id: resource.id,
+      name: resource.name,
+      description: resource.description || '',
+      version: resource.version,
+      downloads: resource.downloads,
+      rating: resource.rating,
+      icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id}/icon` : null,
+      author: resource.author ? resource.author.name : 'Unknown',
+      isInstalled: installedPluginIds.has(resource.id)
     }));
-    
+
     res.json({
-      plugins: formattedPlugins,
-      total: parseInt(total),
+      plugins,
       page: parseInt(page),
-      size: parseInt(size)
+      limit: parseInt(limit),
+      total: plugins.length // Note: Spiget API doesn't provide total count
     });
   } catch (error) {
-    console.error('Error fetching plugins from Spiget:', error);
-    res.status(500).json({ error: 'Failed to fetch plugins' });
+    console.error('Error fetching available plugins:', error);
+    res.status(500).json({ message: 'Error fetching available plugins' });
   }
 };
 
@@ -71,85 +72,52 @@ exports.getAvailablePlugins = async (req, res) => {
 exports.getInstalledPlugins = async (req, res) => {
   try {
     const { serverId } = req.params;
-    
-    // Check if server exists
+
+    // Validate serverId
     const server = await Server.findById(serverId);
     if (!server) {
-      return res.status(404).json({ error: 'Server not found' });
+      return res.status(404).json({ message: 'Server not found' });
     }
-    
-    // Check if server is Paper type
-    if (server.serverType !== 'paper') {
-      return res.status(400).json({ error: 'Plugin management is only available for Paper servers' });
-    }
-    
-    // Get the plugins directory for this server
-    const pluginsDir = path.join(__dirname, '../servers', serverId, 'plugins');
-    
-    try {
-      // Check if plugins directory exists
-      await fs.access(pluginsDir);
-      
-      // Read the plugins directory
-      const files = await fs.readdir(pluginsDir);
-      
-      // Filter for .jar files
-      const pluginFiles = files.filter(file => file.endsWith('.jar'));
-      
-      // For each plugin file, try to get its details from Spiget
-      const plugins = await Promise.all(
-        pluginFiles.map(async (file) => {
-          try {
-            // Extract plugin name from filename (remove .jar extension)
-            const pluginName = file.replace('.jar', '');
-            
-            // Search for the plugin on Spiget
-            const searchResults = await spiget.search('resource', {
-              query: pluginName,
-              size: 1
-            });
-            
-            if (searchResults.data && searchResults.data.length > 0) {
-              const plugin = searchResults.data[0];
-              return {
-                id: plugin.id,
-                name: plugin.name,
-                version: plugin.version?.name || 'Unknown',
-                file: file
-              };
-            } else {
-              // If not found on Spiget, return basic info
-              return {
-                id: 'unknown',
-                name: pluginName,
-                version: 'Unknown',
-                file: file
-              };
-            }
-          } catch (error) {
-            console.error(`Error getting details for plugin ${file}:`, error);
-            // Return basic info if we can't get details
-            return {
-              id: 'unknown',
-              name: file.replace('.jar', ''),
-              version: 'Unknown',
-              file: file
-            };
-          }
-        })
-      );
-      
-      res.json({ plugins });
-    } catch (error) {
-      // If plugins directory doesn't exist, return empty array
-      if (error.code === 'ENOENT') {
-        return res.json({ plugins: [] });
+
+    const installedPlugins = await Plugin.find({ serverId });
+    const pluginDetails = [];
+
+    for (const plugin of installedPlugins) {
+      try {
+        const resource = await spiget.getResource(plugin.spigetId);
+        if (resource) {
+          pluginDetails.push({
+            id: resource.id,
+            name: resource.name,
+            description: resource.description || '',
+            version: resource.version,
+            downloads: resource.downloads,
+            rating: resource.rating,
+            icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id}/icon` : null,
+            author: resource.author ? resource.author.name : 'Unknown',
+            installed: true,
+            installedVersion: plugin.version,
+            enabled: plugin.enabled
+          });
+        }
+      } catch (error) {
+        console.error(`Error fetching details for plugin ${plugin.spigetId}:`, error);
+        // Include basic info from database if API fetch fails
+        pluginDetails.push({
+          id: plugin.spigetId,
+          name: plugin.name,
+          version: plugin.version,
+          installed: true,
+          installedVersion: plugin.version,
+          enabled: plugin.enabled
+        });
       }
-      throw error;
     }
+
+    res.json(pluginDetails);
   } catch (error) {
-    console.error('Error getting installed plugins:', error);
-    res.status(500).json({ error: 'Failed to get installed plugins' });
+    console.error('Error fetching installed plugins:', error);
+    res.status(500).json({ message: 'Error fetching installed plugins' });
   }
 };
 
@@ -161,90 +129,66 @@ exports.getInstalledPlugins = async (req, res) => {
 exports.installPlugin = async (req, res) => {
   try {
     const { serverId } = req.params;
-    const { pluginId, version } = req.body;
-    
-    // Check if server exists
+    const { pluginId } = req.body;
+
+    // Validate serverId
     const server = await Server.findById(serverId);
     if (!server) {
-      return res.status(404).json({ error: 'Server not found' });
+      return res.status(404).json({ message: 'Server not found' });
     }
-    
-    // Check if server is Paper type
-    if (server.serverType !== 'paper') {
-      return res.status(400).json({ error: 'Plugin management is only available for Paper servers' });
-    }
-    
-    // Check if server is stopped (recommended for plugin installation)
-    if (server.status !== 'stopped') {
-      return res.status(400).json({ error: 'Server should be stopped before installing plugins' });
+
+    // Check if plugin is already installed
+    const existingPlugin = await Plugin.findOne({ spigetId: pluginId, serverId });
+    if (existingPlugin) {
+      return res.status(400).json({ message: 'Plugin is already installed' });
     }
     
     // Get plugin details from Spiget
-    const plugin = await spiget.getResource(pluginId);
-    
-    // Get the plugins directory for this server
-    const pluginsDir = path.join(__dirname, '../servers', serverId, 'plugins');
+    const resource = await spiget.getResource(pluginId);
+    if (!resource) {
+      return res.status(404).json({ message: 'Plugin not found' });
+    }
+
+    // Download URL for the plugin
+    const downloadUrl = `https://api.spiget.org/v2/resources/${pluginId}/download`;
     
     // Create plugins directory if it doesn't exist
-    try {
-      await fs.access(pluginsDir);
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        await fs.mkdir(pluginsDir, { recursive: true });
-      } else {
-        throw error;
-      }
-    }
-    
-    // Download the plugin
-    const downloadUrl = `https://api.spiget.org/v2/resources/${pluginId}/download`;
+    const pluginsDir = path.join(__dirname, '..', 'servers', serverId, 'plugins');
+    await fs.mkdir(pluginsDir, { recursive: true });
+
+    // Download the plugin file
     const response = await axios({
       method: 'get',
       url: downloadUrl,
       responseType: 'arraybuffer'
     });
-    
-    // Save the plugin to the plugins directory
-    const pluginFileName = `${plugin.name.replace(/\s+/g, '_')}.jar`;
+
+    // Save the plugin file
+    const pluginFileName = `${resource.name.replace(/[^a-zA-Z0-9]/g, '_')}.jar`;
     const pluginPath = path.join(pluginsDir, pluginFileName);
     await fs.writeFile(pluginPath, response.data);
-    
-    // Update server's plugin list in the database
-    if (!server.plugins) {
-      server.plugins = [];
-    }
-    
-    // Check if plugin is already in the list
-    const existingPluginIndex = server.plugins.findIndex(p => p.id === pluginId);
-    if (existingPluginIndex >= 0) {
-      // Update existing plugin
-      server.plugins[existingPluginIndex] = {
-        id: pluginId,
-        name: plugin.name,
-        version: version || plugin.version?.name || 'Unknown'
-      };
-    } else {
-      // Add new plugin
-      server.plugins.push({
-        id: pluginId,
-        name: plugin.name,
-        version: version || plugin.version?.name || 'Unknown'
-      });
-    }
-    
-    await server.save();
-    
+
+    // Save plugin information to database
+    const plugin = new Plugin({
+      name: resource.name,
+      spigetId: resource.id,
+      version: resource.version,
+      serverId: serverId
+    });
+    await plugin.save();
+
     res.json({
-      message: `Plugin ${plugin.name} installed successfully`,
+      message: 'Plugin installed successfully',
       plugin: {
-        id: pluginId,
-        name: plugin.name,
-        version: version || plugin.version?.name || 'Unknown'
+        id: resource.id,
+        name: resource.name,
+        version: resource.version,
+        enabled: true
       }
     });
   } catch (error) {
     console.error('Error installing plugin:', error);
-    res.status(500).json({ error: 'Failed to install plugin' });
+    res.status(500).json({ message: 'Error installing plugin' });
   }
 };
 
@@ -256,75 +200,32 @@ exports.installPlugin = async (req, res) => {
 exports.uninstallPlugin = async (req, res) => {
   try {
     const { serverId, pluginId } = req.params;
-    
-    // Check if server exists
+
+    // Validate serverId
     const server = await Server.findById(serverId);
     if (!server) {
-      return res.status(404).json({ error: 'Server not found' });
+      return res.status(404).json({ message: 'Server not found' });
     }
     
-    // Check if server is Paper type
-    if (server.serverType !== 'paper') {
-      return res.status(400).json({ error: 'Plugin management is only available for Paper servers' });
+    // Find and remove plugin from database
+    const plugin = await Plugin.findOneAndDelete({ spigetId: pluginId, serverId });
+    if (!plugin) {
+      return res.status(404).json({ message: 'Plugin not found in installed plugins' });
     }
-    
-    // Check if server is stopped (recommended for plugin uninstallation)
-    if (server.status !== 'stopped') {
-      return res.status(400).json({ error: 'Server should be stopped before uninstalling plugins' });
-    }
-    
-    // Get plugin details from Spiget to get the name
-    let pluginName;
+
+    // Remove plugin file if it exists
+    const pluginFileName = `${plugin.name.replace(/[^a-zA-Z0-9]/g, '_')}.jar`;
+    const pluginPath = path.join(__dirname, '..', 'servers', serverId, 'plugins', pluginFileName);
     try {
-      const plugin = await spiget.getResource(pluginId);
-      pluginName = plugin.name;
-    } catch (error) {
-      console.error('Error getting plugin details:', error);
-      // If we can't get the plugin name, we'll try to find it in the server's plugins list
-      const plugin = server.plugins.find(p => p.id === pluginId);
-      if (plugin) {
-        pluginName = plugin.name;
-      } else {
-        return res.status(404).json({ error: 'Plugin not found' });
-      }
-    }
-    
-    // Get the plugins directory for this server
-    const pluginsDir = path.join(__dirname, '../servers', serverId, 'plugins');
-    
-    // Try to find the plugin file
-    const pluginFileName = `${pluginName.replace(/\s+/g, '_')}.jar`;
-    const pluginPath = path.join(pluginsDir, pluginFileName);
-    
-    try {
-      // Check if the file exists
-      await fs.access(pluginPath);
-      
-      // Delete the plugin file
       await fs.unlink(pluginPath);
-      
-      // Update server's plugin list in the database
-      if (server.plugins) {
-        server.plugins = server.plugins.filter(p => p.id !== pluginId);
-        await server.save();
-      }
-      
-      res.json({ message: `Plugin ${pluginName} uninstalled successfully` });
     } catch (error) {
-      if (error.code === 'ENOENT') {
-        // File doesn't exist, but we'll still remove it from the database
-        if (server.plugins) {
-          server.plugins = server.plugins.filter(p => p.id !== pluginId);
-          await server.save();
-        }
-        
-        res.json({ message: `Plugin ${pluginName} was not found in the plugins directory but removed from the database` });
-      } else {
-        throw error;
-      }
+      console.error('Error removing plugin file:', error);
+      // Continue even if file removal fails
     }
+
+    res.json({ message: 'Plugin uninstalled successfully' });
   } catch (error) {
     console.error('Error uninstalling plugin:', error);
-    res.status(500).json({ error: 'Failed to uninstall plugin' });
+    res.status(500).json({ message: 'Error uninstalling plugin' });
   }
 };
