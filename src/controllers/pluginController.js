@@ -2,11 +2,31 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs').promises;
 const Server = require('../models/Server');
-const SpigetAPI = require('mocha-spiget');
-const { Plugin } = require('../models/plugin');
+const Plugin = require('../models/plugin');
 
-// Initialize Spiget API client
-const spiget = new SpigetAPI();
+// Initialize Spiget API client with error handling
+let spiget;
+try {
+  const SpigetAPI = require('mocha-spiget');
+  spiget = new SpigetAPI();
+} catch (error) {
+  console.error('Error initializing Spiget API client:', error);
+  // Create a fallback implementation
+  spiget = {
+    searchResources: async () => {
+      console.error('Spiget API not available');
+      return [];
+    },
+    getResource: async () => {
+      console.error('Spiget API not available');
+      return null;
+    },
+    getDownloadUrl: async () => {
+      console.error('Spiget API not available');
+      return null;
+    }
+  };
+}
 
 /**
  * Get available plugins from Spiget API
@@ -181,6 +201,9 @@ exports.installPlugin = async (req, res) => {
 
     // Get download URL
     const downloadUrl = await spiget.getDownloadUrl(pluginId);
+    if (!downloadUrl) {
+      return res.status(404).json({ message: 'Plugin download URL not available' });
+    }
     
     // Create plugins directory if it doesn't exist
     const pluginsDir = path.join(__dirname, '..', 'servers', serverId, 'plugins');
