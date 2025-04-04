@@ -2,7 +2,7 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs').promises;
 const Server = require('../models/Server');
-const SpigetAPI = require('spiget-api');
+const SpigetAPI = require('spiget-api').default;
 
 // Initialize Spiget API client with an agent name
 const spiget = new SpigetAPI("MochaPluginManager");
