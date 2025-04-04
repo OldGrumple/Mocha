@@ -4,8 +4,8 @@ const fs = require('fs').promises;
 const Server = require('../models/Server');
 const SpigetAPI = require('spiget-api');
 
-// Initialize Spiget API client
-const spiget = new SpigetAPI();
+// Initialize Spiget API client with an agent name
+const spiget = new SpigetAPI("MochaPluginManager");
 
 /**
  * Get available plugins from Spiget API
