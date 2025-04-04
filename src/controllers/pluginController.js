@@ -31,7 +31,14 @@ exports.getAvailablePlugins = async (req, res) => {
       sort: '-downloads' // Sort by downloads in descending order
     };
 
-    const resources = await spiget.search('resource', options);
+    let resources;
+    try {
+      resources = await spiget.search('resource', options);
+    } catch (error) {
+      console.error('Error searching Spiget API:', error);
+      return res.status(500).json({ message: 'Error searching Spiget API' });
+    }
+
     if (!resources || !Array.isArray(resources)) {
       return res.status(404).json({ message: 'No plugins found' });
     }
@@ -40,17 +47,24 @@ exports.getAvailablePlugins = async (req, res) => {
     const installedPlugins = await Plugin.find({ serverId });
     const installedPluginIds = new Set(installedPlugins.map(p => p.spigetId));
 
-    const plugins = resources.map(resource => ({
-      id: resource.id,
-      name: resource.name,
-      description: resource.description || '',
-      version: resource.version,
-      downloads: resource.downloads,
-      rating: resource.rating,
-      icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id}/icon` : null,
-      author: resource.author ? resource.author.name : 'Unknown',
-      isInstalled: installedPluginIds.has(resource.id)
-    }));
+    const plugins = resources.map(resource => {
+      try {
+        return {
+          id: resource.id || resource._id,
+          name: resource.name || 'Unknown Plugin',
+          description: resource.description || '',
+          version: resource.version || 'Unknown',
+          downloads: resource.downloads || 0,
+          rating: resource.rating || 0,
+          icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id || resource._id}/icon` : null,
+          author: resource.author ? (typeof resource.author === 'string' ? resource.author : resource.author.name) : 'Unknown',
+          isInstalled: installedPluginIds.has(resource.id || resource._id)
+        };
+      } catch (error) {
+        console.error('Error processing plugin:', error);
+        return null;
+      }
+    }).filter(plugin => plugin !== null);
 
     res.json({
       plugins,
@@ -87,14 +101,14 @@ exports.getInstalledPlugins = async (req, res) => {
         const resource = await spiget.getResource(plugin.spigetId);
         if (resource) {
           pluginDetails.push({
-            id: resource.id,
-            name: resource.name,
+            id: resource.id || resource._id,
+            name: resource.name || plugin.name,
             description: resource.description || '',
-            version: resource.version,
-            downloads: resource.downloads,
-            rating: resource.rating,
-            icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id}/icon` : null,
-            author: resource.author ? resource.author.name : 'Unknown',
+            version: resource.version || plugin.version,
+            downloads: resource.downloads || 0,
+            rating: resource.rating || 0,
+            icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id || resource._id}/icon` : null,
+            author: resource.author ? (typeof resource.author === 'string' ? resource.author : resource.author.name) : 'Unknown',
             installed: true,
             installedVersion: plugin.version,
             enabled: plugin.enabled
@@ -144,7 +158,14 @@ exports.installPlugin = async (req, res) => {
     }
     
     // Get plugin details from Spiget
-    const resource = await spiget.getResource(pluginId);
+    let resource;
+    try {
+      resource = await spiget.getResource(pluginId);
+    } catch (error) {
+      console.error('Error fetching plugin details:', error);
+      return res.status(404).json({ message: 'Plugin not found' });
+    }
+
     if (!resource) {
       return res.status(404).json({ message: 'Plugin not found' });
     }
@@ -164,15 +185,15 @@ exports.installPlugin = async (req, res) => {
     });
 
     // Save the plugin file
-    const pluginFileName = `${resource.name.replace(/[^a-zA-Z0-9]/g, '_')}.jar`;
+    const pluginFileName = `${(resource.name || 'plugin').replace(/[^a-zA-Z0-9]/g, '_')}.jar`;
     const pluginPath = path.join(pluginsDir, pluginFileName);
     await fs.writeFile(pluginPath, response.data);
 
     // Save plugin information to database
     const plugin = new Plugin({
-      name: resource.name,
-      spigetId: resource.id,
-      version: resource.version,
+      name: resource.name || 'Unknown Plugin',
+      spigetId: resource.id || resource._id,
+      version: resource.version || 'Unknown',
       serverId: serverId
     });
     await plugin.save();
@@ -180,9 +201,9 @@ exports.installPlugin = async (req, res) => {
     res.json({
       message: 'Plugin installed successfully',
       plugin: {
-        id: resource.id,
-        name: resource.name,
-        version: resource.version,
+        id: resource.id || resource._id,
+        name: resource.name || 'Unknown Plugin',
+        version: resource.version || 'Unknown',
         enabled: true
       }
     });
