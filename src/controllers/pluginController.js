@@ -7,8 +7,26 @@ const Plugin = require('../models/plugin');
 // Initialize Spiget API client with error handling
 let spiget;
 try {
-  const SpigetAPI = require('mocha-spiget');
-  spiget = new SpigetAPI();
+  const { Resources, Authors } = require('mocha-spiget');
+  // Create instances of the modules
+  const resources = new Resources('https://api.spiget.org/v2');
+  const authors = new Authors('https://api.spiget.org/v2');
+  
+  // Create a wrapper for compatibility
+  spiget = {
+    searchResources: async (query, options) => {
+      return resources.searchResources(query, options);
+    },
+    getResources: async (options) => {
+      return resources.getResources(options);
+    },
+    getResource: async (id, fields) => {
+      return resources.getResource(id, { fields });
+    },
+    getDownloadUrl: async (resourceId, options = {}) => {
+      return resources.getDownloadUrl(resourceId, options);
+    }
+  };
 } catch (error) {
   console.error('Error initializing Spiget API client:', error);
   // Create a fallback implementation
@@ -47,6 +65,7 @@ exports.getAvailablePlugins = async (req, res) => {
     let resources;
     try {
       if (search) {
+        // Use searchResources method as per README
         resources = await spiget.searchResources(search, {
           page: parseInt(page),
           size: parseInt(limit),
@@ -55,6 +74,7 @@ exports.getAvailablePlugins = async (req, res) => {
           fields: 'id,name,description,version,downloads,rating,author,icon'
         });
       } else {
+        // Use getResources method as per README
         resources = await spiget.getResources({
           page: parseInt(page),
           size: parseInt(limit),
@@ -127,6 +147,7 @@ exports.getInstalledPlugins = async (req, res) => {
 
     for (const plugin of installedPlugins) {
       try {
+        // Use getResource method as per README
         const resource = await spiget.getResource(plugin.spigetId, 'id,name,description,version,downloads,rating,author,icon');
         if (resource) {
           pluginDetails.push({
@@ -189,6 +210,7 @@ exports.installPlugin = async (req, res) => {
     // Get plugin details from Spiget
     let resource;
     try {
+      // Use getResource method as per README
       resource = await spiget.getResource(pluginId, 'id,name,version');
     } catch (error) {
       console.error('Error fetching plugin details:', error);
@@ -199,7 +221,7 @@ exports.installPlugin = async (req, res) => {
       return res.status(404).json({ message: 'Plugin not found' });
     }
 
-    // Get download URL
+    // Get download URL using getDownloadUrl method as per README
     const downloadUrl = await spiget.getDownloadUrl(pluginId);
     if (!downloadUrl) {
       return res.status(404).json({ message: 'Plugin download URL not available' });
