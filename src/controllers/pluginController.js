@@ -32,7 +32,7 @@ exports.getAvailablePlugins = async (req, res) => {
     };
 
     const resources = await spiget.search('resource', options);
-    if (!resources) {
+    if (!resources || !Array.isArray(resources)) {
       return res.status(404).json({ message: 'No plugins found' });
     }
 
@@ -114,7 +114,7 @@ exports.getInstalledPlugins = async (req, res) => {
       }
     }
 
-    res.json(pluginDetails);
+    res.json({ plugins: pluginDetails });
   } catch (error) {
     console.error('Error fetching installed plugins:', error);
     res.status(500).json({ message: 'Error fetching installed plugins' });
