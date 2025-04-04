@@ -15,6 +15,6 @@
     "test": "jest"
   },
   "dependencies": {
-    "spiget-api": "^1.0.3"
+    "mocha-spiget": "^1.0.1"
   }
 }

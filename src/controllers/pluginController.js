@@ -2,11 +2,11 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs').promises;
 const Server = require('../models/Server');
-const SpigetAPI = require('spiget-api').default;
+const SpigetAPI = require('mocha-spiget');
 const { Plugin } = require('../models/plugin');
 
-// Initialize Spiget API client with an agent name
-const spiget = new SpigetAPI("MochaPluginManager");
+// Initialize Spiget API client
+const spiget = new SpigetAPI();
 
 /**
  * Get available plugins from Spiget API
@@ -24,16 +24,25 @@ exports.getAvailablePlugins = async (req, res) => {
       return res.status(404).json({ message: 'Server not found' });
     }
 
-    const options = {
-      query: search,
-      size: parseInt(limit),
-      page: parseInt(page) - 1, // Spiget uses 0-based pagination
-      sort: '-downloads' // Sort by downloads in descending order
-    };
-
     let resources;
     try {
-      resources = await spiget.search('resource', options);
+      if (search) {
+        resources = await spiget.searchResources(search, {
+          page: parseInt(page),
+          size: parseInt(limit),
+          sort: 'downloads',
+          order: 'desc',
+          fields: 'id,name,description,version,downloads,rating,author,icon'
+        });
+      } else {
+        resources = await spiget.getResources({
+          page: parseInt(page),
+          size: parseInt(limit),
+          sort: 'downloads',
+          order: 'desc',
+          fields: 'id,name,description,version,downloads,rating,author,icon'
+        });
+      }
     } catch (error) {
       console.error('Error searching Spiget API:', error);
       return res.status(500).json({ message: 'Error searching Spiget API' });
@@ -50,15 +59,15 @@ exports.getAvailablePlugins = async (req, res) => {
     const plugins = resources.map(resource => {
       try {
         return {
-          id: resource.id || resource._id,
+          id: resource.id,
           name: resource.name || 'Unknown Plugin',
           description: resource.description || '',
           version: resource.version || 'Unknown',
           downloads: resource.downloads || 0,
           rating: resource.rating || 0,
-          icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id || resource._id}/icon` : null,
+          icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id}/icon` : null,
           author: resource.author ? (typeof resource.author === 'string' ? resource.author : resource.author.name) : 'Unknown',
-          isInstalled: installedPluginIds.has(resource.id || resource._id)
+          isInstalled: installedPluginIds.has(resource.id)
         };
       } catch (error) {
         console.error('Error processing plugin:', error);
@@ -70,7 +79,7 @@ exports.getAvailablePlugins = async (req, res) => {
       plugins,
       page: parseInt(page),
       limit: parseInt(limit),
-      total: plugins.length // Note: Spiget API doesn't provide total count
+      total: plugins.length
     });
   } catch (error) {
     console.error('Error fetching available plugins:', error);
@@ -98,16 +107,16 @@ exports.getInstalledPlugins = async (req, res) => {
 
     for (const plugin of installedPlugins) {
       try {
-        const resource = await spiget.getResource(plugin.spigetId);
+        const resource = await spiget.getResource(plugin.spigetId, 'id,name,description,version,downloads,rating,author,icon');
         if (resource) {
           pluginDetails.push({
-            id: resource.id || resource._id,
+            id: resource.id,
             name: resource.name || plugin.name,
             description: resource.description || '',
             version: resource.version || plugin.version,
             downloads: resource.downloads || 0,
             rating: resource.rating || 0,
-            icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id || resource._id}/icon` : null,
+            icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id}/icon` : null,
             author: resource.author ? (typeof resource.author === 'string' ? resource.author : resource.author.name) : 'Unknown',
             installed: true,
             installedVersion: plugin.version,
@@ -160,7 +169,7 @@ exports.installPlugin = async (req, res) => {
     // Get plugin details from Spiget
     let resource;
     try {
-      resource = await spiget.getResource(pluginId);
+      resource = await spiget.getResource(pluginId, 'id,name,version');
     } catch (error) {
       console.error('Error fetching plugin details:', error);
       return res.status(404).json({ message: 'Plugin not found' });
@@ -170,8 +179,8 @@ exports.installPlugin = async (req, res) => {
       return res.status(404).json({ message: 'Plugin not found' });
     }
 
-    // Download URL for the plugin
-    const downloadUrl = `https://api.spiget.org/v2/resources/${pluginId}/download`;
+    // Get download URL
+    const downloadUrl = await spiget.getDownloadUrl(pluginId);
     
     // Create plugins directory if it doesn't exist
     const pluginsDir = path.join(__dirname, '..', 'servers', serverId, 'plugins');
@@ -192,7 +201,7 @@ exports.installPlugin = async (req, res) => {
     // Save plugin information to database
     const plugin = new Plugin({
       name: resource.name || 'Unknown Plugin',
-      spigetId: resource.id || resource._id,
+      spigetId: resource.id,
       version: resource.version || 'Unknown',
       serverId: serverId
     });
@@ -201,7 +210,7 @@ exports.installPlugin = async (req, res) => {
     res.json({
       message: 'Plugin installed successfully',
       plugin: {
-        id: resource.id || resource._id,
+        id: resource.id,
         name: resource.name || 'Unknown Plugin',
         version: resource.version || 'Unknown',
         enabled: true
