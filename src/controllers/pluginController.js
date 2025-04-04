@@ -21,7 +21,8 @@ exports.getAvailablePlugins = async (req, res) => {
     
     // Use the appropriate method based on whether a search term is provided
     if (search) {
-      const searchResults = await spiget.searchResources(search, {
+      const searchResults = await spiget.search('resource', {
+        query: search,
         page: parseInt(page),
         size: parseInt(size),
         sort: '-downloads'
@@ -47,7 +48,7 @@ exports.getAvailablePlugins = async (req, res) => {
       downloads: plugin.downloads || 0,
       rating: plugin.rating?.average || 0,
       updatedAt: plugin.updateDate || plugin.date,
-      downloadUrl: `${spiget.baseUrl}/resources/${plugin.id}/download`
+      downloadUrl: `https://api.spiget.org/v2/resources/${plugin.id}/download`
     }));
     
     res.json({
@@ -103,7 +104,10 @@ exports.getInstalledPlugins = async (req, res) => {
             const pluginName = file.replace('.jar', '');
             
             // Search for the plugin on Spiget
-            const searchResults = await spiget.searchResources(pluginName, { size: 1 });
+            const searchResults = await spiget.search('resource', {
+              query: pluginName,
+              size: 1
+            });
             
             if (searchResults.data && searchResults.data.length > 0) {
               const plugin = searchResults.data[0];
@@ -193,7 +197,7 @@ exports.installPlugin = async (req, res) => {
     }
     
     // Download the plugin
-    const downloadUrl = `${spiget.baseUrl}/resources/${pluginId}/download`;
+    const downloadUrl = `https://api.spiget.org/v2/resources/${pluginId}/download`;
     const response = await axios({
       method: 'get',
       url: downloadUrl,
