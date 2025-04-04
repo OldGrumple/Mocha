@@ -13,5 +13,8 @@
     "node:prod": "NODE_ENV=production node scripts/runNode.js",
     "deploy:node": "node scripts/deployNode.js",
     "test": "jest"
+  },
+  "dependencies": {
+    "spiget-api": "^1.0.3"
   }
-} 
+}

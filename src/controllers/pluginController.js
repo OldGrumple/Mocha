@@ -2,9 +2,10 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs').promises;
 const Server = require('../models/Server');
+const SpigetAPI = require('spiget-api');
 
-// Spiget API base URL
-const SPIGET_API_BASE_URL = 'https://api.spiget.org/v2';
+// Initialize Spiget API client
+const spiget = new SpigetAPI();
 
 /**
  * Get available plugins from Spiget API
@@ -15,22 +16,30 @@ exports.getAvailablePlugins = async (req, res) => {
   try {
     const { search, page = 1, size = 20 } = req.query;
     
-    // Build the Spiget API URL with query parameters
-    let apiUrl = `${SPIGET_API_BASE_URL}/resources`;
+    let plugins;
+    let total;
     
-    // Add search parameter if provided
+    // Use the appropriate method based on whether a search term is provided
     if (search) {
-      apiUrl += `/search/${encodeURIComponent(search)}`;
+      const searchResults = await spiget.searchResources(search, {
+        page: parseInt(page),
+        size: parseInt(size),
+        sort: '-downloads'
+      });
+      plugins = searchResults.data;
+      total = searchResults.total;
+    } else {
+      const resources = await spiget.getResources({
+        page: parseInt(page),
+        size: parseInt(size),
+        sort: '-downloads'
+      });
+      plugins = resources.data;
+      total = resources.total;
     }
     
-    // Add pagination parameters
-    apiUrl += `?page=${page}&size=${size}&sort=-downloads`;
-    
-    // Make the API call to Spiget
-    const response = await axios.get(apiUrl);
-    
     // Transform the response to match our expected format
-    const plugins = response.data.map(plugin => ({
+    const formattedPlugins = plugins.map(plugin => ({
       id: plugin.id,
       name: plugin.name,
       description: plugin.description || 'No description available',
@@ -38,14 +47,11 @@ exports.getAvailablePlugins = async (req, res) => {
       downloads: plugin.downloads || 0,
       rating: plugin.rating?.average || 0,
       updatedAt: plugin.updateDate || plugin.date,
-      downloadUrl: `${SPIGET_API_BASE_URL}/resources/${plugin.id}/download`
+      downloadUrl: `${spiget.baseUrl}/resources/${plugin.id}/download`
     }));
     
-    // Get total count for pagination
-    const total = response.headers['x-total-count'] || plugins.length;
-    
     res.json({
-      plugins,
+      plugins: formattedPlugins,
       total: parseInt(total),
       page: parseInt(page),
       size: parseInt(size)
@@ -97,10 +103,10 @@ exports.getInstalledPlugins = async (req, res) => {
             const pluginName = file.replace('.jar', '');
             
             // Search for the plugin on Spiget
-            const searchResponse = await axios.get(`${SPIGET_API_BASE_URL}/resources/search/${encodeURIComponent(pluginName)}?size=1`);
+            const searchResults = await spiget.searchResources(pluginName, { size: 1 });
             
-            if (searchResponse.data && searchResponse.data.length > 0) {
-              const plugin = searchResponse.data[0];
+            if (searchResults.data && searchResults.data.length > 0) {
+              const plugin = searchResults.data[0];
               return {
                 id: plugin.id,
                 name: plugin.name,
@@ -170,8 +176,7 @@ exports.installPlugin = async (req, res) => {
     }
     
     // Get plugin details from Spiget
-    const pluginResponse = await axios.get(`${SPIGET_API_BASE_URL}/resources/${pluginId}`);
-    const plugin = pluginResponse.data;
+    const plugin = await spiget.getResource(pluginId);
     
     // Get the plugins directory for this server
     const pluginsDir = path.join(__dirname, '../servers', serverId, 'plugins');
@@ -188,7 +193,7 @@ exports.installPlugin = async (req, res) => {
     }
     
     // Download the plugin
-    const downloadUrl = `${SPIGET_API_BASE_URL}/resources/${pluginId}/download`;
+    const downloadUrl = `${spiget.baseUrl}/resources/${pluginId}/download`;
     const response = await axios({
       method: 'get',
       url: downloadUrl,
@@ -267,8 +272,8 @@ exports.uninstallPlugin = async (req, res) => {
     // Get plugin details from Spiget to get the name
     let pluginName;
     try {
-      const pluginResponse = await axios.get(`${SPIGET_API_BASE_URL}/resources/${pluginId}`);
-      pluginName = pluginResponse.data.name;
+      const plugin = await spiget.getResource(pluginId);
+      pluginName = plugin.name;
     } catch (error) {
       console.error('Error getting plugin details:', error);
       // If we can't get the plugin name, we'll try to find it in the server's plugins list
