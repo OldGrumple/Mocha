@@ -9,6 +9,7 @@ loadEnv();
 const { connectDB } = require('./config/database');
 const apiRoutes = require('./routes/api');
 const errorHandler = require('./utils/errorHandler');
+const pluginService = require('./services/pluginService');
 
 const app = express();
 const PORT = process.env.API_PORT || 3000;
@@ -41,6 +42,10 @@ const startServer = async () => {
             console.log(`Server is running on port ${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV}`);
         });
+
+        // Start plugin service
+        pluginService.start();
+        console.log('Plugin service started');
     } catch (error) {
         console.error('Failed to start server:', error);
         process.exit(1);

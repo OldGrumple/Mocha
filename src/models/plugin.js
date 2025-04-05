@@ -28,6 +28,15 @@ const pluginSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  status: {
+    type: String,
+    enum: ['pending', 'installing', 'installed', 'failed'],
+    default: 'pending'
+  },
+  error: {
+    type: String,
+    default: null
+  },
   config: {
     type: mongoose.Schema.Types.Mixed,
     default: {}

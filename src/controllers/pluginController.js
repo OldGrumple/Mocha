@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs').promises;
 const Server = require('../models/Server');
 const { Plugin } = require('../models/plugin');
+const Node = require('../models/Node');
+const GRPCAgentService = require('../services/GRPCAgentService');
 
 // Initialize Spiget API client
 let spigetClient = null;
@@ -233,44 +235,28 @@ exports.installPlugin = async (req, res) => {
       return res.status(404).json({ message: 'Plugin not found' });
     }
 
-    // Get download URL
-    const downloadUrl = await spiget.getDownloadUrl(pluginId);
-    if (!downloadUrl) {
-      return res.status(404).json({ message: 'Plugin download URL not available' });
-    }
-    
-    // Create plugins directory if it doesn't exist
-    const pluginsDir = path.join(__dirname, '..', 'servers', serverId, 'plugins');
-    await fs.mkdir(pluginsDir, { recursive: true });
-
-    // Download the plugin file
-    const response = await axios({
-      method: 'get',
-      url: downloadUrl,
-      responseType: 'arraybuffer'
-    });
-
-    // Save the plugin file
-    const pluginFileName = `${(resource.name || 'plugin').replace(/[^a-zA-Z0-9]/g, '_')}.jar`;
-    const pluginPath = path.join(pluginsDir, pluginFileName);
-    await fs.writeFile(pluginPath, response.data);
-
-    // Save plugin information to database
+    // Create new plugin document
     const plugin = new Plugin({
-      name: resource.name || 'Unknown Plugin',
+      name: resource.name,
       spigetId: resource.id,
-      version: resource.version || 'Unknown',
-      serverId: serverId
+      version: resource.version.id,
+      serverId: serverId,
+      enabled: true,
+      status: 'pending' // Add status field to track installation state
     });
+
+    // Save plugin to database
     await plugin.save();
 
-    res.json({
-      message: 'Plugin installed successfully',
+    // Return success response
+    res.json({ 
+      message: 'Plugin installation initiated',
       plugin: {
-        id: resource.id,
-        name: resource.name || 'Unknown Plugin',
-        version: resource.version || 'Unknown',
-        enabled: true
+        id: plugin.spigetId,
+        name: plugin.name,
+        version: plugin.version,
+        enabled: plugin.enabled,
+        status: plugin.status
       }
     });
   } catch (error) {

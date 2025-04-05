@@ -108,8 +108,10 @@ message ServerStatusResponse {
 }
 
 message Plugin {
-  string name = 1;
-  string version = 2;
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  bool enabled = 4;
 }
 
 message HeartbeatRequest {
