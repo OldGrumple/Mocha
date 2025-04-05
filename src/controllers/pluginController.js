@@ -52,6 +52,8 @@ exports.getAvailablePlugins = async (req, res) => {
         // Search for resources by name and tag
         resources = await spiget.searchResources(search.trim(), {
           size: 100, // Get more results for better search coverage
+          sort: 'downloads', // Always sort by downloads initially
+          order: 'desc',
           fields: 'id,name,tag,description,version,downloads,rating,author,icon,updateDate'
         });
         
@@ -62,12 +64,14 @@ exports.getAvailablePlugins = async (req, res) => {
           resource.tag?.toLowerCase().includes(searchLower)
         );
 
-        // Apply sorting after filtering
-        if (sort.startsWith('-')) {
-          const field = sort.substring(1);
-          resources.sort((a, b) => (b[field] || 0) - (a[field] || 0));
-        } else {
-          resources.sort((a, b) => (a[sort] || 0) - (b[sort] || 0));
+        // Apply any additional sorting if different from downloads
+        if (sort !== '-downloads') {
+          if (sort.startsWith('-')) {
+            const field = sort.substring(1);
+            resources.sort((a, b) => (b[field] || 0) - (a[field] || 0));
+          } else {
+            resources.sort((a, b) => (a[sort] || 0) - (b[sort] || 0));
+          }
         }
 
         // Apply pagination
@@ -79,8 +83,8 @@ exports.getAvailablePlugins = async (req, res) => {
         resources = await spiget.getResources({
           page: parseInt(page),
           size: parseInt(size),
-          sort: sort.startsWith('-') ? sort.substring(1) : sort,
-          order: sort.startsWith('-') ? 'desc' : 'asc',
+          sort: 'downloads', // Always sort by downloads for initial view
+          order: 'desc',
           fields: 'id,name,tag,description,version,downloads,rating,author,icon,updateDate'
         });
         total = 5000; // Spiget has a large number of plugins, set a reasonable total
