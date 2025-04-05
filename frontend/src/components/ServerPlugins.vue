@@ -497,31 +497,45 @@ const fetchInstalledPlugins = async () => {
 
 const installPlugin = async (plugin) => {
   try {
-    isInstalling.value = true
-    await axios.post(`/api/servers/${props.serverId}/plugins`, {
+    isInstalling.value = true;
+    
+    // Show loading state
+    const loadingMessage = `Installing ${plugin.name}...`;
+    alert(loadingMessage);
+    
+    // Call the API to install the plugin
+    const response = await axios.post(`/api/servers/${props.serverId}/plugins`, {
       pluginId: plugin.id,
-      version: plugin.version
-    })
+      version: plugin.version?.id || plugin.version
+    });
     
     // Update the plugin's installed status
-    plugin.isInstalled = true
+    plugin.isInstalled = true;
     
-    // Add to installed plugins list
+    // Add to installed plugins list with full details
     installedPlugins.value.push({
       id: plugin.id,
       name: plugin.name,
-      version: plugin.version
-    })
+      version: plugin.version?.id || plugin.version,
+      rating: plugin.rating?.average || 0,
+      ratingCount: plugin.rating?.count || 0,
+      description: plugin.description || '',
+      icon: plugin.icon || null,
+      author: plugin.author || 'Unknown'
+    });
     
     // Show success message
-    alert(`Plugin ${plugin.name} installed successfully!`)
+    alert(`${plugin.name} has been installed successfully! The server will need to be restarted for the plugin to take effect.`);
+    
+    // Refresh the installed plugins list
+    await fetchInstalledPlugins();
   } catch (error) {
-    console.error('Error installing plugin:', error)
-    alert(`Failed to install plugin: ${error.response?.data?.error || error.message}`)
+    console.error('Error installing plugin:', error);
+    alert(`Failed to install plugin: ${error.response?.data?.message || error.message}`);
   } finally {
-    isInstalling.value = false
+    isInstalling.value = false;
   }
-}
+};
 
 const uninstallPlugin = async (plugin) => {
   try {

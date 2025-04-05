@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const Server = require('../models/Server');
 const { Plugin } = require('../models/plugin');
+const GRPCAgentService = require('../services/GRPCAgentService');
 
 // Initialize Spiget API client
 let spigetClient = null;
@@ -206,7 +207,7 @@ exports.installPlugin = async (req, res) => {
     const { pluginId } = req.body;
 
     // Validate serverId
-    const server = await Server.findById(serverId);
+    const server = await Server.findById(serverId).populate('nodeId');
     if (!server) {
       return res.status(404).json({ message: 'Server not found' });
     }
@@ -263,6 +264,20 @@ exports.installPlugin = async (req, res) => {
       serverId: serverId
     });
     await plugin.save();
+
+    // Update plugins on the server via gRPC
+    const grpcClient = new GRPCAgentService(server.nodeId);
+    const plugins = [{
+      name: plugin.name,
+      version: plugin.version
+    }];
+
+    try {
+      await grpcClient.updatePlugins(server.instanceId, plugins);
+    } catch (error) {
+      console.error('Error updating plugins via gRPC:', error);
+      // Continue even if gRPC update fails, as the plugin is still installed
+    }
 
     res.json({
       message: 'Plugin installed successfully',
