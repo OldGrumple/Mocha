@@ -339,7 +339,7 @@ const props = defineProps({
 const plugins = ref([])
 const installedPlugins = ref([])
 const searchQuery = ref('')
-const sortBy = ref('downloads')
+const sortBy = ref('-downloads')
 const isInstalling = ref(false)
 const isUninstalling = ref(false)
 const isLoading = ref(false)
@@ -440,7 +440,7 @@ const fetchPlugins = async () => {
     const params = new URLSearchParams({
       page: currentPage.value,
       size: pageSize.value,
-      sort: sortBy.value, // Pass the sort parameter directly
+      sort: sortBy.value, // Will default to -downloads
       fields: 'id,name,description,version,downloads,rating,author,icon,updateDate'
     });
     
