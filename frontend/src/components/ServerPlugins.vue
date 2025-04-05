@@ -33,10 +33,14 @@
             v-model="sortBy"
             class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
           >
-            <option value="downloads">Most Downloaded</option>
-            <option value="rating">Highest Rated</option>
-            <option value="updated">Recently Updated</option>
-            <option value="name">Name</option>
+            <option value="-downloads">Most Downloaded</option>
+            <option value="downloads">Least Downloaded</option>
+            <option value="-rating">Highest Rated</option>
+            <option value="rating">Lowest Rated</option>
+            <option value="-updated">Recently Updated</option>
+            <option value="updated">Oldest Updated</option>
+            <option value="-name">Name (Z-A)</option>
+            <option value="name">Name (A-Z)</option>
           </select>
         </div>
       </div>
@@ -350,24 +354,32 @@ const filteredPlugins = computed(() => {
   let result = [...plugins.value]
   
   // Sort by selected criteria
-  switch (sortBy.value) {
-    case 'downloads':
-      result.sort((a, b) => (b.downloads || 0) - (a.downloads || 0))
-      break
-    case 'rating':
-      result.sort((a, b) => ((b.rating || 0) - (a.rating || 0)))
-      break
-    case 'updated':
-      result.sort((a, b) => {
+  const [field, direction] = sortBy.value.startsWith('-') 
+    ? [sortBy.value.substring(1), 'desc'] 
+    : [sortBy.value, 'asc']
+
+  result.sort((a, b) => {
+    let comparison = 0
+    
+    switch (field) {
+      case 'downloads':
+        comparison = (a.downloads || 0) - (b.downloads || 0)
+        break
+      case 'rating':
+        comparison = ((a.rating?.average || 0) - (b.rating?.average || 0))
+        break
+      case 'updated':
         const dateA = a.updateDate ? new Date(a.updateDate) : new Date(0)
         const dateB = b.updateDate ? new Date(b.updateDate) : new Date(0)
-        return dateB - dateA
-      })
-      break
-    case 'name':
-      result.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-      break
-  }
+        comparison = dateA - dateB
+        break
+      case 'name':
+        comparison = (a.name || '').localeCompare(b.name || '')
+        break
+    }
+    
+    return direction === 'desc' ? -comparison : comparison
+  })
   
   return result
 })
@@ -428,8 +440,8 @@ const fetchPlugins = async () => {
     const params = new URLSearchParams({
       page: currentPage.value,
       size: pageSize.value,
-      sort: '-downloads', // Sort by downloads in descending order
-      fields: 'id,name,description,version,downloads,rating,author,icon'
+      sort: sortBy.value, // Pass the sort parameter directly
+      fields: 'id,name,description,version,downloads,rating,author,icon,updateDate'
     });
     
     let endpoint;
@@ -441,17 +453,15 @@ const fetchPlugins = async () => {
     
     const response = await axios.get(endpoint);
     
-    // Transform the response data to match our component's needs
     plugins.value = response.data.plugins.map(plugin => ({
       ...plugin,
       version: plugin.version?.id || 'Unknown',
       versionUuid: plugin.version?.uuid || null,
       rating: plugin.rating?.average || 0,
       ratingCount: plugin.rating?.count || 0,
-      downloads: parseInt(plugin.downloads) || 0 // Ensure downloads is a number
+      downloads: parseInt(plugin.downloads) || 0
     }));
     
-    // Update pagination info if available
     if (response.data.total) {
       totalItems.value = response.data.total;
       totalPages.value = Math.ceil(totalItems.value / pageSize.value);
@@ -566,7 +576,8 @@ const debounceSearch = () => {
 
 // Watch for sort changes
 watch(sortBy, () => {
-  // No need to refetch, just resort the existing data
+  currentPage.value = 1; // Reset to first page when sort changes
+  fetchPlugins();
 })
 
 // Lifecycle hooks
