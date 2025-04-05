@@ -4,7 +4,7 @@ const fs = require('fs').promises;
 const Server = require('../models/Server');
 const { Plugin } = require('../models/plugin');
 const Node = require('../models/Node');
-const GRPCAgentService = require('../services/GRPCAgentService');
+const GRPCAgentService = require('../services/grpcAgentService');
 
 // Initialize Spiget API client
 let spigetClient = null;

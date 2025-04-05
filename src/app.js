@@ -9,7 +9,8 @@ loadEnv();
 const { connectDB } = require('./config/database');
 const apiRoutes = require('./routes/api');
 const errorHandler = require('./utils/errorHandler');
-const pluginService = require('./services/pluginService');
+const GRPCAgentService = require('./services/grpcAgentService');
+const Node = require('./models/Node');
 
 const app = express();
 const PORT = process.env.API_PORT || 3000;
@@ -43,9 +44,14 @@ const startServer = async () => {
             console.log(`Environment: ${process.env.NODE_ENV}`);
         });
 
-        // Start plugin service
-        pluginService.start();
-        console.log('Plugin service started');
+        // Initialize gRPC agent service and start plugin service
+        const node = await Node.findOne();
+        if (node) {
+            const grpcAgentService = new GRPCAgentService(node);
+            grpcAgentService.startPluginService();
+        } else {
+            console.warn('No node found in database, plugin service not started');
+        }
     } catch (error) {
         console.error('Failed to start server:', error);
         process.exit(1);
