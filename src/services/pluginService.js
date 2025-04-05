@@ -1,6 +1,7 @@
 const { Plugin } = require('../models/plugin');
 const Server = require('../models/Server');
 const Node = require('../models/Node');
+const GRPCAgentService = require('./GRPCAgentService');
 
 class PluginService {
   constructor() {
