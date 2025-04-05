@@ -53,9 +53,8 @@ exports.getAvailablePlugins = async (req, res) => {
         resources = await spiget.searchResources(search.trim(), {
           page: parseInt(page),
           size: parseInt(size),
-          sort: sort.startsWith('-') ? sort.substring(1) : sort,
-          order: sort.startsWith('-') ? 'desc' : 'asc',
-          fields: 'id,name,description,version,downloads,rating,author,icon,updateDate'
+          sort: sort.startsWith('-') ? sort.substring(1) : sort ? 'desc' : 'asc',
+          fields: 'id,name,tag,downloads,rating,author'
         });
         total = resources.length;
       } else {
@@ -63,9 +62,8 @@ exports.getAvailablePlugins = async (req, res) => {
         resources = await spiget.getResources({
           page: parseInt(page),
           size: parseInt(size),
-          sort: sort.startsWith('-') ? sort.substring(1) : sort,
-          order: sort.startsWith('-') ? 'desc' : 'asc',
-          fields: 'id,name,description,version,downloads,rating,author,icon,updateDate'
+          sort: sort.startsWith('-') ? sort.substring(1) : sort ? 'desc' : 'asc',
+          fields: 'id,name,tag,downloads,rating,author,icon,updateDate'
         });
         total = resources.length;
       }
