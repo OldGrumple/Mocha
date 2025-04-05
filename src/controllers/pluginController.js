@@ -49,23 +49,41 @@ exports.getAvailablePlugins = async (req, res) => {
 
     try {
       if (search.trim()) {
-        // Search for resources
+        // Search for resources by name and tag
         resources = await spiget.searchResources(search.trim(), {
-          page: parseInt(page),
-          size: parseInt(size),
-          sort: sort.startsWith('-') ? sort.substring(1) : sort ? 'desc' : 'asc',
-          fields: 'id,name,tag,downloads,rating,author'
+          size: 100, // Get more results for better search coverage
+          fields: 'id,name,tag,description,version,downloads,rating,author,icon,updateDate'
         });
+        
+        // Filter results that match the search term in name or tag (case-insensitive)
+        const searchLower = search.trim().toLowerCase();
+        resources = resources.filter(resource => 
+          resource.name?.toLowerCase().includes(searchLower) ||
+          resource.tag?.toLowerCase().includes(searchLower)
+        );
+
+        // Apply sorting after filtering
+        if (sort.startsWith('-')) {
+          const field = sort.substring(1);
+          resources.sort((a, b) => (b[field] || 0) - (a[field] || 0));
+        } else {
+          resources.sort((a, b) => (a[sort] || 0) - (b[sort] || 0));
+        }
+
+        // Apply pagination
         total = resources.length;
+        const startIndex = (parseInt(page) - 1) * parseInt(size);
+        resources = resources.slice(startIndex, startIndex + parseInt(size));
       } else {
-        // Get all resources for the current page
+        // Get top resources sorted by downloads
         resources = await spiget.getResources({
           page: parseInt(page),
           size: parseInt(size),
-          sort: sort.startsWith('-') ? sort.substring(1) : sort ? 'desc' : 'asc',
-          fields: 'id,name,tag,downloads,rating,author,icon,updateDate'
+          sort: sort.startsWith('-') ? sort.substring(1) : sort,
+          order: sort.startsWith('-') ? 'desc' : 'asc',
+          fields: 'id,name,tag,description,version,downloads,rating,author,icon,updateDate'
         });
-        total = resources.length;
+        total = 5000; // Spiget has a large number of plugins, set a reasonable total
       }
     } catch (error) {
       console.error('Error searching Spiget API:', error);
@@ -85,7 +103,7 @@ exports.getAvailablePlugins = async (req, res) => {
         return {
           id: resource.id,
           name: resource.name || 'Unknown Plugin',
-          description: resource.description || '',
+          description: resource.description || resource.tag || '',
           version: resource.version || { id: 'Unknown', uuid: null },
           downloads: parseInt(resource.downloads) || 0,
           rating: resource.rating || { average: 0, count: 0 },
@@ -99,9 +117,6 @@ exports.getAvailablePlugins = async (req, res) => {
         return null;
       }
     }).filter(plugin => plugin !== null);
-
-    // For pagination, we'll use a minimum of 100 total items to ensure proper navigation
-    total = Math.max(total, 100);
 
     res.json({
       plugins,
