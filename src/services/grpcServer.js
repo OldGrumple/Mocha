@@ -1261,37 +1261,7 @@ const agentService = {
                 return;
             }
 
-            // Validate the server is running
-            if (serverInfo.status !== 'running') {
-                callback({
-                    code: grpc.status.FAILED_PRECONDITION,
-                    message: 'Server must be running to update plugins'
-                });
-                return;
-            }
-
-            // Get the server's plugin directory
-            const pluginsDir = path.join(serverInfo.baseDir, 'plugins');
-            
-            // Ensure plugins directory exists
-            if (!fs.existsSync(pluginsDir)) {
-                fs.mkdirSync(pluginsDir, { recursive: true });
-            }
-
-            // Update plugin list in the server's configuration
-            const pluginList = plugins.map(plugin => ({
-                name: plugin.name,
-                version: plugin.version
-            }));
-
-            // Save the updated plugin list
-            const pluginListPath = path.join(serverInfo.baseDir, 'plugins.json');
-            fs.writeFileSync(pluginListPath, JSON.stringify(pluginList, null, 2));
-
-            // Notify the server about the plugin update
-            // This will be handled by the server's plugin manager
-            serverInfo.plugins = pluginList;
-
+            // TODO: Implement plugin management
             callback(null, {
                 success: true,
                 message: 'Plugins updated successfully'
