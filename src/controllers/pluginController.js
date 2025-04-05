@@ -4,47 +4,57 @@ const fs = require('fs').promises;
 const Server = require('../models/Server');
 const Plugin = require('../models/plugin');
 
-// Initialize Spiget API client with error handling
-let spiget;
-try {
-  const { Resources, Authors } = require('mocha-spiget');
-  // Create instances of the modules
-  const resources = new Resources('https://api.spiget.org/v2');
-  const authors = new Authors('https://api.spiget.org/v2');
+// Initialize Spiget API client with dynamic import
+let spiget = null;
+
+// Function to initialize the Spiget API client
+const initSpiget = async () => {
+  if (spiget) return spiget;
   
-  // Create a wrapper for compatibility
-  spiget = {
-    searchResources: async (query, options) => {
-      return resources.searchResources(query, options);
-    },
-    getResources: async (options) => {
-      return resources.getResources(options);
-    },
-    getResource: async (id, fields) => {
-      return resources.getResource(id, { fields });
-    },
-    getDownloadUrl: async (resourceId, options = {}) => {
-      return resources.getDownloadUrl(resourceId, options);
-    }
-  };
-} catch (error) {
-  console.error('Error initializing Spiget API client:', error);
-  // Create a fallback implementation
-  spiget = {
-    searchResources: async () => {
-      console.error('Spiget API not available');
-      return [];
-    },
-    getResource: async () => {
-      console.error('Spiget API not available');
-      return null;
-    },
-    getDownloadUrl: async () => {
-      console.error('Spiget API not available');
-      return null;
-    }
-  };
-}
+  try {
+    const { Resources, Authors } = await import('mocha-spiget');
+    // Create instances of the modules
+    const resources = new Resources('https://api.spiget.org/v2');
+    const authors = new Authors('https://api.spiget.org/v2');
+    
+    // Create a wrapper for compatibility
+    spiget = {
+      searchResources: async (query, options) => {
+        return resources.searchResources(query, options);
+      },
+      getResources: async (options) => {
+        return resources.getResources(options);
+      },
+      getResource: async (id, fields) => {
+        return resources.getResource(id, { fields });
+      },
+      getDownloadUrl: async (resourceId, options = {}) => {
+        return resources.getDownloadUrl(resourceId, options);
+      }
+    };
+    
+    console.log('Spiget API initialized successfully');
+    return spiget;
+  } catch (error) {
+    console.error('Error initializing Spiget API client:', error);
+    // Create a fallback implementation
+    spiget = {
+      searchResources: async () => {
+        console.error('Spiget API not available');
+        return [];
+      },
+      getResource: async () => {
+        console.error('Spiget API not available');
+        return null;
+      },
+      getDownloadUrl: async () => {
+        console.error('Spiget API not available');
+        return null;
+      }
+    };
+    return spiget;
+  }
+};
 
 /**
  * Get available plugins from Spiget API
@@ -62,11 +72,14 @@ exports.getAvailablePlugins = async (req, res) => {
       return res.status(404).json({ message: 'Server not found' });
     }
 
+    // Initialize Spiget API if not already initialized
+    const spigetClient = await initSpiget();
+
     let resources;
     try {
       if (search) {
         // Use searchResources method as per README
-        resources = await spiget.searchResources(search, {
+        resources = await spigetClient.searchResources(search, {
           page: parseInt(page),
           size: parseInt(limit),
           sort: 'downloads',
@@ -75,7 +88,7 @@ exports.getAvailablePlugins = async (req, res) => {
         });
       } else {
         // Use getResources method as per README
-        resources = await spiget.getResources({
+        resources = await spigetClient.getResources({
           page: parseInt(page),
           size: parseInt(limit),
           sort: 'downloads',
@@ -142,13 +155,16 @@ exports.getInstalledPlugins = async (req, res) => {
       return res.status(404).json({ message: 'Server not found' });
     }
 
+    // Initialize Spiget API if not already initialized
+    const spigetClient = await initSpiget();
+
     const installedPlugins = await Plugin.find({ serverId });
     const pluginDetails = [];
 
     for (const plugin of installedPlugins) {
       try {
         // Use getResource method as per README
-        const resource = await spiget.getResource(plugin.spigetId, 'id,name,description,version,downloads,rating,author,icon');
+        const resource = await spigetClient.getResource(plugin.spigetId, 'id,name,description,version,downloads,rating,author,icon');
         if (resource) {
           pluginDetails.push({
             id: resource.id,
@@ -207,11 +223,14 @@ exports.installPlugin = async (req, res) => {
       return res.status(400).json({ message: 'Plugin is already installed' });
     }
     
+    // Initialize Spiget API if not already initialized
+    const spigetClient = await initSpiget();
+    
     // Get plugin details from Spiget
     let resource;
     try {
       // Use getResource method as per README
-      resource = await spiget.getResource(pluginId, 'id,name,version');
+      resource = await spigetClient.getResource(pluginId, 'id,name,version');
     } catch (error) {
       console.error('Error fetching plugin details:', error);
       return res.status(404).json({ message: 'Plugin not found' });
@@ -222,7 +241,7 @@ exports.installPlugin = async (req, res) => {
     }
 
     // Get download URL using getDownloadUrl method as per README
-    const downloadUrl = await spiget.getDownloadUrl(pluginId);
+    const downloadUrl = await spigetClient.getDownloadUrl(pluginId);
     if (!downloadUrl) {
       return res.status(404).json({ message: 'Plugin download URL not available' });
     }
