@@ -25,8 +25,8 @@ const initSpiget = async () => {
       getResources: async (options) => {
         return resources.getResources(options);
       },
-      getResource: async (id, fields) => {
-        return resources.getResource(id, { fields });
+      getResource: async (id, options) => {
+        return resources.getResource(id, options);
       },
       getDownloadUrl: async (resourceId, options = {}) => {
         return resources.getDownloadUrl(resourceId, options);
@@ -164,7 +164,7 @@ exports.getInstalledPlugins = async (req, res) => {
     for (const plugin of installedPlugins) {
       try {
         // Use getResource method as per README
-        const resource = await spigetClient.getResource(plugin.spigetId, 'id,name,description,version,downloads,rating,author,icon');
+        const resource = await spigetClient.getResource(plugin.spigetId, { fields: 'id,name,description,version,downloads,rating,author,icon' });
         if (resource) {
           pluginDetails.push({
             id: resource.id,
@@ -230,7 +230,7 @@ exports.installPlugin = async (req, res) => {
     let resource;
     try {
       // Use getResource method as per README
-      resource = await spigetClient.getResource(pluginId, 'id,name,version');
+      resource = await spigetClient.getResource(pluginId, { fields: 'id,name,version' });
     } catch (error) {
       console.error('Error fetching plugin details:', error);
       return res.status(404).json({ message: 'Plugin not found' });

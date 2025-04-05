@@ -307,6 +307,7 @@
 </template>
 
 <script setup>
+/* eslint-disable no-undef */
 import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
 
