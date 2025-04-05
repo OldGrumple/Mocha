@@ -44,35 +44,30 @@ exports.getAvailablePlugins = async (req, res) => {
     // Initialize Spiget API
     const spiget = await initSpiget();
 
-    // Set up options for the API request
-    const options = {
-      page: parseInt(page),
-      size: parseInt(size),
-      sort: sort.startsWith('-') ? sort.substring(1) : sort,
-      order: sort.startsWith('-') ? 'desc' : 'asc',
-      fields: 'id,name,description,version,downloads,rating,author,icon,updateDate'
-    };
-
     let resources;
     let total = 0;
 
     try {
       if (search.trim()) {
-        // Search for resources with total count
-        const searchResults = await Promise.all([
-          spiget.searchResources(search.trim(), options),
-          spiget.getResourceSearchCount(search.trim())
-        ]);
-        resources = searchResults[0];
-        total = searchResults[1];
+        // Search for resources
+        resources = await spiget.searchResources(search.trim(), {
+          page: parseInt(page),
+          size: parseInt(size),
+          sort: sort.startsWith('-') ? sort.substring(1) : sort,
+          order: sort.startsWith('-') ? 'desc' : 'asc',
+          fields: 'id,name,description,version,downloads,rating,author,icon,updateDate'
+        });
+        total = resources.length;
       } else {
-        // Get all resources with total count
-        const allResults = await Promise.all([
-          spiget.getResources(options),
-          spiget.getResourceCount()
-        ]);
-        resources = allResults[0];
-        total = allResults[1];
+        // Get all resources for the current page
+        resources = await spiget.getResources({
+          page: parseInt(page),
+          size: parseInt(size),
+          sort: sort.startsWith('-') ? sort.substring(1) : sort,
+          order: sort.startsWith('-') ? 'desc' : 'asc',
+          fields: 'id,name,description,version,downloads,rating,author,icon,updateDate'
+        });
+        total = resources.length;
       }
     } catch (error) {
       console.error('Error searching Spiget API:', error);
@@ -106,6 +101,9 @@ exports.getAvailablePlugins = async (req, res) => {
         return null;
       }
     }).filter(plugin => plugin !== null);
+
+    // For pagination, we'll use a minimum of 100 total items to ensure proper navigation
+    total = Math.max(total, 100);
 
     res.json({
       plugins,
