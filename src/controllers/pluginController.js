@@ -2,7 +2,7 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs').promises;
 const Server = require('../models/Server');
-const Plugin = require('../models/plugin');
+const { Plugin } = require('../models/plugin');
 
 // Initialize Spiget API client with dynamic import
 let spiget = null;
