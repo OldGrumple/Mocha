@@ -32,7 +32,7 @@ const initSpiget = async () => {
  */
 exports.getAvailablePlugins = async (req, res) => {
   try {
-    const { search = '', page = 1, limit = 10 } = req.query;
+    const { search = '', page = 1, size = 10, sort = '-downloads' } = req.query;
     const { serverId } = req.params;
 
     // Validate serverId
@@ -44,26 +44,35 @@ exports.getAvailablePlugins = async (req, res) => {
     // Initialize Spiget API
     const spiget = await initSpiget();
 
+    // Set up options for the API request
+    const options = {
+      page: parseInt(page),
+      size: parseInt(size),
+      sort: sort.startsWith('-') ? sort.substring(1) : sort,
+      order: sort.startsWith('-') ? 'desc' : 'asc',
+      fields: 'id,name,description,version,downloads,rating,author,icon,updateDate'
+    };
+
     let resources;
+    let total = 0;
+
     try {
-      if (search) {
-        // Search for resources
-        resources = await spiget.searchResources(search, {
-          page: parseInt(page),
-          size: parseInt(limit),
-          sort: 'downloads',
-          order: 'desc',
-          fields: 'id,name,description,version,downloads,rating,author,icon'
-        });
+      if (search.trim()) {
+        // Search for resources with total count
+        const searchResults = await Promise.all([
+          spiget.searchResources(search.trim(), options),
+          spiget.getResourceSearchCount(search.trim())
+        ]);
+        resources = searchResults[0];
+        total = searchResults[1];
       } else {
-        // Get all resources
-        resources = await spiget.getResources({
-          page: parseInt(page),
-          size: parseInt(limit),
-          sort: 'downloads',
-          order: 'desc',
-          fields: 'id,name,description,version,downloads,rating,author,icon'
-        });
+        // Get all resources with total count
+        const allResults = await Promise.all([
+          spiget.getResources(options),
+          spiget.getResourceCount()
+        ]);
+        resources = allResults[0];
+        total = allResults[1];
       }
     } catch (error) {
       console.error('Error searching Spiget API:', error);
@@ -84,12 +93,13 @@ exports.getAvailablePlugins = async (req, res) => {
           id: resource.id,
           name: resource.name || 'Unknown Plugin',
           description: resource.description || '',
-          version: resource.version || 'Unknown',
-          downloads: resource.downloads || 0,
-          rating: resource.rating || 0,
+          version: resource.version || { id: 'Unknown', uuid: null },
+          downloads: parseInt(resource.downloads) || 0,
+          rating: resource.rating || { average: 0, count: 0 },
           icon: resource.icon ? `https://api.spiget.org/v2/resources/${resource.id}/icon` : null,
           author: resource.author ? (typeof resource.author === 'string' ? resource.author : resource.author.name) : 'Unknown',
-          isInstalled: installedPluginIds.has(resource.id)
+          isInstalled: installedPluginIds.has(resource.id),
+          updateDate: resource.updateDate
         };
       } catch (error) {
         console.error('Error processing plugin:', error);
@@ -100,8 +110,9 @@ exports.getAvailablePlugins = async (req, res) => {
     res.json({
       plugins,
       page: parseInt(page),
-      limit: parseInt(limit),
-      total: plugins.length
+      size: parseInt(size),
+      total,
+      totalPages: Math.ceil(total / parseInt(size))
     });
   } catch (error) {
     console.error('Error fetching available plugins:', error);

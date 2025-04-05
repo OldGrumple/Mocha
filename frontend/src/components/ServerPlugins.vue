@@ -352,16 +352,20 @@ const filteredPlugins = computed(() => {
   // Sort by selected criteria
   switch (sortBy.value) {
     case 'downloads':
-      result.sort((a, b) => b.downloads - a.downloads)
+      result.sort((a, b) => (b.downloads || 0) - (a.downloads || 0))
       break
     case 'rating':
-      result.sort((a, b) => b.rating - a.rating)
+      result.sort((a, b) => ((b.rating || 0) - (a.rating || 0)))
       break
     case 'updated':
-      result.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      result.sort((a, b) => {
+        const dateA = a.updateDate ? new Date(a.updateDate) : new Date(0)
+        const dateB = b.updateDate ? new Date(b.updateDate) : new Date(0)
+        return dateB - dateA
+      })
       break
     case 'name':
-      result.sort((a, b) => a.name.localeCompare(b.name))
+      result.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
       break
   }
   
@@ -423,14 +427,19 @@ const fetchPlugins = async () => {
     // Build the API URL with query parameters
     const params = new URLSearchParams({
       page: currentPage.value,
-      size: pageSize.value
+      size: pageSize.value,
+      sort: '-downloads', // Sort by downloads in descending order
+      fields: 'id,name,description,version,downloads,rating,author,icon'
     });
     
-    if (searchQuery.value) {
-      params.append('search', searchQuery.value);
+    let endpoint;
+    if (searchQuery.value.trim()) {
+      endpoint = `/api/servers/${props.serverId}/plugins/available?search=${encodeURIComponent(searchQuery.value.trim())}&${params.toString()}`;
+    } else {
+      endpoint = `/api/servers/${props.serverId}/plugins/available?${params.toString()}`;
     }
     
-    const response = await axios.get(`/api/servers/${props.serverId}/plugins/available?${params.toString()}`);
+    const response = await axios.get(endpoint);
     
     // Transform the response data to match our component's needs
     plugins.value = response.data.plugins.map(plugin => ({
@@ -438,7 +447,8 @@ const fetchPlugins = async () => {
       version: plugin.version?.id || 'Unknown',
       versionUuid: plugin.version?.uuid || null,
       rating: plugin.rating?.average || 0,
-      ratingCount: plugin.rating?.count || 0
+      ratingCount: plugin.rating?.count || 0,
+      downloads: parseInt(plugin.downloads) || 0 // Ensure downloads is a number
     }));
     
     // Update pagination info if available
